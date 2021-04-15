@@ -1,14 +1,13 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"strings"
 
-	"dynatrace-error-analyser/pkg/util"
-	"dynatrace-error-analyser/pkg/version"
+	"github.com/dynatrace-error-analyser/pkg/analyse"
+	"github.com/dynatrace-error-analyser/pkg/version"
+
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
@@ -20,118 +19,96 @@ func Run(args []string) int {
 	return RunImpl(args)
 }
 
-func containsVersionFlag(args []string) bool {
-	for _, arg := range args {
-		if arg == "--version" || arg == "-version" {
-			return true
-		}
-	}
-
-	return false
-}
-
 func RunImpl(args []string) (statusCode int) {
-	if containsVersionFlag(args) {
-		fmt.Println(version.ErrorAnalyser)
-		return 0
-	}
+	var app *cli.App = buildCli()
 
-	statusCode = 0
+	err := app.Run(args)
 
-	verbose, environments, specifcEnvironment, path, errorList, flagError := parseInputCommand(args)
-
-	fmt.Println("verbose:", verbose)
-	fmt.Println("environments:", environments)
-	fmt.Println("specificEnvironment:", specifcEnvironment)
-	fmt.Println("path:", path)
-	fmt.Println("errorList:", errorList)
-	fmt.Println("flagError:", flagError)
-
-	return statusCode
-}
-
-func parseInputCommand(args []string) (verbose bool, environments map[string]string, // environment.Environment,
-	specifcEnvironment string, path string, errorList []error, flagError error) {
-
-	// define flags
-	var configFile string
-	var specificEnvironment string
-	var versionFlag bool
-
-	// parse flags
-	shorthand := " (shorthand)"
-
-	flagSet := flag.NewFlagSet("arguments", flag.ExitOnError)
-
-	verboseUsage := "Set verbose flag to enable debug logging."
-	flagSet.BoolVar(&verbose, "verbose", false, verboseUsage)
-	flagSet.BoolVar(&verbose, "v", false, verboseUsage+shorthand)
-
-	specificEnvironmentUsage := "Specific environment (from list) to analyse errors for."
-	flagSet.StringVar(&specificEnvironment, "specific-environment", "", specificEnvironmentUsage)
-	flagSet.StringVar(&specificEnvironment, "se", "", specificEnvironmentUsage+shorthand)
-
-	configFileUsage := "Mandatory yaml file containing the environments to analyse."
-	flagSet.StringVar(&configFile, "config", "", configFileUsage)
-	flagSet.StringVar(&configFile, "c", "", configFileUsage+shorthand)
-
-	versionUsage := "Prints the current version of the tool and exits"
-	flagSet.BoolVar(&versionFlag, "version", false, versionUsage)
-
-	err := flagSet.Parse(args[1:])
 	if err != nil {
-		return verbose, environments, specifcEnvironment, path, nil, err
+		return 1
 	}
 
-	// Show usage if flags are invalid
-	if configFile == "" {
-		cliname := "Name: \n" +
-			"\tderran \n" +
-			"Version:\n" +
-			"\t" + version.ErrorAnalyser
-
-		cliuse :=
-			"\nUsage: \n" +
-				"\tderran --config <path-to-config-yaml-file> [output-folder] \n" +
-				"\tderran --config <path-to-config-yaml-file> --specific-environment <environment-name> [output-folder] \n" +
-				"\tderran --version \n"
-
-		examples :=
-			"Examples:\n" +
-				"Analyse Errors in all environments. Output to current folder: \n" +
-				"\tderran -c='config.yaml' . \n" +
-				"\nAnalyse Errors in a specific environment. Output to Temp folder: \n" +
-				"\tderran --config config.yaml --specific-environment dev C:\\Temp"
-
-		println(cliname)
-		println(cliuse)
-		flagSet.Usage()
-		println("")
-		println(examples)
-		os.Exit(1)
-	}
-
-	// TODO: Delete me
-	fakeEnvs := make(map[string]string)
-	fakeEnvs["n1"] = "v1"
-	environments, errorList = fakeEnvs, nil // environment.LoadEnvironmentList(specificEnvironment, configFile)
-
-	path = readPath(args)
-
-	return verbose, environments, specifcEnvironment, path, errorList, nil
+	return 0
 }
 
-func readPath(args []string) string {
-	// Check path at the end
-	potentialPath := args[len(args)-1]
-	if !strings.HasSuffix(potentialPath, ".yaml") {
-		potentialPath = util.ReplacePathSeparators(potentialPath)
-		if _, err := ioutil.ReadDir(potentialPath); err == nil {
-			if !strings.HasSuffix(potentialPath, string(os.PathSeparator)) {
-				potentialPath += string(os.PathSeparator)
-			}
-			return potentialPath
-		}
+func buildCli() *cli.App {
+	app := cli.NewApp()
+
+	app.Name = "derran"
+	app.Usage = "Automates the impact analysis of application errors detected by Dynatrace."
+	app.Version = version.ErrorAnalyser
+
+	cli.VersionPrinter = func(c *cli.Context) {
+		fmt.Println(c.App.Version)
 	}
-	return ""
+
+	cli.VersionFlag = &cli.BoolFlag{
+		Name:    "version",
+		Aliases: []string{"v"},
+		Usage:   "print the version and exit",
+	}
+
+	app.Description = `
+	Tool used to analyse and report on application errors via the CLI
+
+	Examples:
+	  Analyse all errors in all environments and create a report in the current folder:
+	    derran analyse --config config.yaml .
+
+	  Analyse all errors in a specific environment and create a report in Temp:
+	    derran analyse -c='config.yaml' -se='dev' C:\Temp
+	`
+	analyseCommand := getAnalyseCommand()
+	app.Commands = []*cli.Command{&analyseCommand}
+
+	return app
+}
+
+func getAnalyseCommand() cli.Command {
+	command := cli.Command{
+		Name:      "analyse",
+		Usage:     "analyses errors in given environments",
+		UsageText: "analyse [command options] [output directory]",
+		ArgsUsage: "[output directory]",
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:    "verbose",
+				Aliases: []string{"v"},
+			},
+			&cli.PathFlag{
+				Name:      "config",
+				Usage:     "Yaml file contianing the tool configuration",
+				Aliases:   []string{"c"},
+				Required:  true,
+				TakesFile: true,
+			},
+			&cli.StringFlag{
+				Name:    "specific-environment",
+				Usage:   "Specific environment (from list) to analyse",
+				Aliases: []string{"se"},
+			},
+		},
+		Action: func(ctx *cli.Context) error {
+			if ctx.NArg() > 1 {
+				fmt.Println("Error: Too many arguments! Either specify a relative path to the working directory, or omit it for using the current working directory.")
+				cli.ShowAppHelpAndExit(ctx, 1)
+			}
+
+			var outputDir string
+			_ = outputDir
+
+			if ctx.Args().Present() {
+				outputDir = ctx.Args().First()
+			} else {
+				outputDir = "."
+			}
+
+			return analyse.Analyse(
+				outputDir,
+				ctx.Path("config"),
+				ctx.String("specific-environment"),
+			)
+		},
+	}
+	return command
 }
