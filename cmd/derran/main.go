@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dynatrace-error-analyser/pkg/analyse"
-	"github.com/dynatrace-error-analyser/pkg/version"
+	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/analyse"
+	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/version"
 
 	"github.com/urfave/cli/v2"
 )
