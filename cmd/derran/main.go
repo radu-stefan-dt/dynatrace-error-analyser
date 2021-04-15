@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dynatrace-error-analyser/pkg/analyse"
-	"github.com/dynatrace-error-analyser/pkg/version"
+	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/analyse"
+	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/util"
+	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/version"
 
 	"github.com/urfave/cli/v2"
 )
@@ -22,9 +23,8 @@ func Run(args []string) int {
 func RunImpl(args []string) (statusCode int) {
 	var app *cli.App = buildCli()
 
-	err := app.Run(args)
-
-	if err != nil {
+	if err := app.Run(args); err != nil {
+		util.Log.Error("%s\n", err)
 		return 1
 	}
 
@@ -34,7 +34,6 @@ func RunImpl(args []string) (statusCode int) {
 func buildCli() *cli.App {
 	app := cli.NewApp()
 
-	app.Name = "derran"
 	app.Usage = "Automates the impact analysis of application errors detected by Dynatrace."
 	app.Version = version.ErrorAnalyser
 
@@ -70,6 +69,15 @@ func getAnalyseCommand() cli.Command {
 		Usage:     "analyses errors in given environments",
 		UsageText: "analyse [command options] [output directory]",
 		ArgsUsage: "[output directory]",
+		Before: func(c *cli.Context) error {
+			if err := util.SetupLogging(c.Bool("verbose")); err != nil {
+				return err
+			}
+
+			util.Log.Info("Dynatrace Error Analyser v" + version.ErrorAnalyser)
+
+			return nil
+		},
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "verbose",
@@ -95,7 +103,6 @@ func getAnalyseCommand() cli.Command {
 			}
 
 			var outputDir string
-			_ = outputDir
 
 			if ctx.Args().Present() {
 				outputDir = ctx.Args().First()
