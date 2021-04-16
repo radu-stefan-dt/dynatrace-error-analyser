@@ -7,7 +7,7 @@ import (
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/analyse"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/util"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/version"
-
+	"github.com/spf13/afero"
 	"github.com/urfave/cli/v2"
 )
 
@@ -17,11 +17,11 @@ func main() {
 }
 
 func Run(args []string) int {
-	return RunImpl(args)
+	return RunImpl(args, afero.NewOsFs())
 }
 
-func RunImpl(args []string) (statusCode int) {
-	var app *cli.App = buildCli()
+func RunImpl(args []string, fs afero.Fs) (statusCode int) {
+	var app *cli.App = buildCli(fs)
 
 	if err := app.Run(args); err != nil {
 		util.Log.Error("%s\n", err)
@@ -31,7 +31,7 @@ func RunImpl(args []string) (statusCode int) {
 	return 0
 }
 
-func buildCli() *cli.App {
+func buildCli(fs afero.Fs) *cli.App {
 	app := cli.NewApp()
 
 	app.Usage = "Automates the impact analysis of application errors detected by Dynatrace."
@@ -42,9 +42,8 @@ func buildCli() *cli.App {
 	}
 
 	cli.VersionFlag = &cli.BoolFlag{
-		Name:    "version",
-		Aliases: []string{"v"},
-		Usage:   "print the version and exit",
+		Name:  "version",
+		Usage: "print the version and exit",
 	}
 
 	app.Description = `
@@ -57,13 +56,13 @@ func buildCli() *cli.App {
 	  Analyse all errors in a specific environment and create a report in Temp:
 	    derran analyse -c='config.yaml' -se='dev' C:\Temp
 	`
-	analyseCommand := getAnalyseCommand()
+	analyseCommand := getAnalyseCommand(fs)
 	app.Commands = []*cli.Command{&analyseCommand}
 
 	return app
 }
 
-func getAnalyseCommand() cli.Command {
+func getAnalyseCommand(fs afero.Fs) cli.Command {
 	command := cli.Command{
 		Name:      "analyse",
 		Usage:     "analyses errors in given environments",
@@ -83,10 +82,15 @@ func getAnalyseCommand() cli.Command {
 				Name:    "verbose",
 				Aliases: []string{"v"},
 			},
+			&cli.BoolFlag{
+				Name:    "dry-run",
+				Aliases: []string{"d"},
+				Usage:   "validate connectivity to environments, but don't execute anything",
+			},
 			&cli.PathFlag{
-				Name:      "config",
-				Usage:     "Yaml file contianing the tool configuration",
-				Aliases:   []string{"c"},
+				Name:      "environments",
+				Usage:     "Yaml file containing details of Dynatrace environments",
+				Aliases:   []string{"e"},
 				Required:  true,
 				TakesFile: true,
 			},
@@ -98,7 +102,7 @@ func getAnalyseCommand() cli.Command {
 		},
 		Action: func(ctx *cli.Context) error {
 			if ctx.NArg() > 1 {
-				fmt.Println("Error: Too many arguments! Either specify a relative path to the working directory, or omit it for using the current working directory.")
+				fmt.Println("Error: Too many arguments! Either specify a relative path to the output directory, or omit it for using the current directory.")
 				cli.ShowAppHelpAndExit(ctx, 1)
 			}
 
@@ -111,8 +115,10 @@ func getAnalyseCommand() cli.Command {
 			}
 
 			return analyse.Analyse(
+				ctx.Bool("dry-run"),
 				outputDir,
-				ctx.Path("config"),
+				fs,
+				ctx.Path("environments"),
 				ctx.String("specific-environment"),
 			)
 		},

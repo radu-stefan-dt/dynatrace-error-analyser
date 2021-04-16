@@ -16,3 +16,6 @@
 
 # unnecessary directories and files
 **.logs**
+**config.yaml**
+**envs.yaml**
+**.vscode**
