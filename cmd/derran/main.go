@@ -82,10 +82,15 @@ func getAnalyseCommand(fs afero.Fs) cli.Command {
 				Name:    "verbose",
 				Aliases: []string{"v"},
 			},
+			&cli.BoolFlag{
+				Name:    "dry-run",
+				Aliases: []string{"d"},
+				Usage:   "validate connectivity to environments, but don't execute anything",
+			},
 			&cli.PathFlag{
-				Name:      "config",
-				Usage:     "Yaml file contianing the tool configuration",
-				Aliases:   []string{"c"},
+				Name:      "environments",
+				Usage:     "Yaml file containing details of Dynatrace environments",
+				Aliases:   []string{"e"},
 				Required:  true,
 				TakesFile: true,
 			},
@@ -97,7 +102,7 @@ func getAnalyseCommand(fs afero.Fs) cli.Command {
 		},
 		Action: func(ctx *cli.Context) error {
 			if ctx.NArg() > 1 {
-				fmt.Println("Error: Too many arguments! Either specify a relative path to the working directory, or omit it for using the current working directory.")
+				fmt.Println("Error: Too many arguments! Either specify a relative path to the output directory, or omit it for using the current directory.")
 				cli.ShowAppHelpAndExit(ctx, 1)
 			}
 
@@ -110,9 +115,10 @@ func getAnalyseCommand(fs afero.Fs) cli.Command {
 			}
 
 			return analyse.Analyse(
+				ctx.Bool("dry-run"),
 				outputDir,
 				fs,
-				ctx.Path("config"),
+				ctx.Path("environments"),
 				ctx.String("specific-environment"),
 			)
 		},
