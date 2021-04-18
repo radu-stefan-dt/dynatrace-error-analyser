@@ -22,27 +22,25 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/config"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/environment"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/util"
 	"github.com/spf13/afero"
 )
 
-func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string, specificEnvironment string) error {
+func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string, configFile string, specificEnvironment string) error {
 	environments, errors := environment.LoadEnvironmentList(specificEnvironment, environmentsFile, fs)
+	configs, errors := config.LoadConfigList(configFile, fs)
 
 	outputDir = filepath.Clean(outputDir)
 	_ = outputDir
+	_ = configs
 
 	var deploymentErrors = make(map[string][]error)
 
 	for i, err := range errors {
 		configIssue := fmt.Sprintf("environmentfile-issue-%d", i)
 		deploymentErrors[configIssue] = append(deploymentErrors[configIssue], err)
-	}
-
-	util.Log.Debug("Environments:")
-	for _, env := range environments {
-		util.Log.Debug(fmt.Sprintf("%#v", env))
 	}
 
 	for _, environment := range environments {
