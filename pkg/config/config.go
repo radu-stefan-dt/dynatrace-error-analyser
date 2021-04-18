@@ -113,10 +113,13 @@ func newConfig(id string, properties map[string]interface{}) (Config, error) {
 		}
 	}
 
+	// TODO: need a final check of all mandatory details for creating a valid config
+
 	return NewConfiguration(id, configName, configType, configProps, configEnvs), nil
 }
 
-func NewConfiguration(id string, configName string, configType ConfigType, configProps map[string]interface{}, configEnvs []string) Config {
+func NewConfiguration(id string, configName string, configType ConfigType,
+	configProps map[string]interface{}, configEnvs []string) Config {
 	return &configImpl{
 		id:           id,
 		name:         configName,
