@@ -65,14 +65,14 @@ func buildCli(fs afero.Fs) *cli.App {
 	}
 
 	app.Description = `
-	Tool used to analyse and report on application errors via the CLI
+	Tool used to analyse and report on Dynatrace-detected application errors via the CLI
 
 	Examples:
 	  Analyse all errors in all environments and create a report in the current folder:
-	    derran analyse --config config.yaml .
+	    derran analyse --environments envs.yaml --config config.yaml .
 
 	  Analyse all errors in a specific environment and create a report in Temp:
-	    derran analyse -c='config.yaml' -se='dev' C:\Temp
+	    derran analyse -e='envs.yaml' -c='config.yaml' -se='dev' C:\Temp
 	`
 	analyseCommand := getAnalyseCommand(fs)
 	app.Commands = []*cli.Command{&analyseCommand}
@@ -107,8 +107,15 @@ func getAnalyseCommand(fs afero.Fs) cli.Command {
 			},
 			&cli.PathFlag{
 				Name:      "environments",
-				Usage:     "Yaml file containing details of Dynatrace environments",
+				Usage:     "YAML file containing details of Dynatrace environments",
 				Aliases:   []string{"e"},
+				Required:  true,
+				TakesFile: true,
+			},
+			&cli.PathFlag{
+				Name:      "config",
+				Usage:     "YAML file containing configurations for error analysis",
+				Aliases:   []string{"c"},
 				Required:  true,
 				TakesFile: true,
 			},
@@ -137,6 +144,7 @@ func getAnalyseCommand(fs afero.Fs) cli.Command {
 				outputDir,
 				fs,
 				ctx.Path("environments"),
+				ctx.Path("config"),
 				ctx.String("specific-environment"),
 			)
 		},

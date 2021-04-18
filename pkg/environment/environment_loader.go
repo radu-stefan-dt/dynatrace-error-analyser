@@ -60,11 +60,11 @@ func LoadEnvironmentList(specificEnvironment string, environmentsFile string, fs
 func readEnvironments(file string, fs afero.Fs) (map[string]Environment, []error) {
 
 	data, err := afero.ReadFile(fs, file)
-	util.FailOnError(err, "Error while reading file")
+	util.FailOnError(err, "Error while reading environments file")
 
 	environmentMaps := make(map[string]map[string]string)
 	err = yaml.Unmarshal(data, &environmentMaps)
-	util.FailOnError(err, "Error while converting file")
+	util.FailOnError(err, "Error while converting YAML from environments file")
 
 	return NewEnvironments(environmentMaps)
 }
