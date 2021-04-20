@@ -24,13 +24,14 @@ import (
 
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/config"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/environment"
+	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/rest"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/util"
 	"github.com/spf13/afero"
 )
 
 func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string, configFile string, specificEnvironment string) error {
-	environments, errors := environment.LoadEnvironmentList(specificEnvironment, environmentsFile, fs)
-	configs, errors := config.LoadConfigList(configFile, fs)
+	environments, envErrors := environment.LoadEnvironmentList(specificEnvironment, environmentsFile, fs)
+	configs, configErrors := config.LoadConfigList(configFile, fs)
 
 	outputDir = filepath.Clean(outputDir)
 	_ = outputDir
@@ -38,16 +39,20 @@ func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string
 
 	var deploymentErrors = make(map[string][]error)
 
-	for i, err := range errors {
+	for i, err := range envErrors {
 		configIssue := fmt.Sprintf("environmentfile-issue-%d", i)
 		deploymentErrors[configIssue] = append(deploymentErrors[configIssue], err)
 	}
+	for i, err := range configErrors {
+		configIssue := fmt.Sprintf("configurationfile-issue-%d", i)
+		deploymentErrors[configIssue] = append(deploymentErrors[configIssue], err)
+	}
 
-	for _, environment := range environments {
-		// errors := execute(environment, projects, dryRun, workingDir, continueOnError)
-		errors := []error{}
+	for _, configuration := range configs {
+		errors := execute(configuration, environments, dryRun, outputDir)
+
 		if len(errors) > 0 {
-			deploymentErrors[environment.GetId()] = errors
+			deploymentErrors[configuration.GetId()] = errors
 		}
 	}
 
@@ -77,4 +82,31 @@ func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string
 			return nil
 		}
 	}
+}
+
+func execute(config config.Config, environments map[string]environment.Environment,
+	dryRun bool, outputDir string) (errorList []error) {
+	util.Log.Info("Running configuration %s", config.GetId())
+
+	for _, env := range config.GetEnvironments() {
+		util.Log.Info("\tAnalysing environment %s", env)
+
+		environment := environments[env]
+		var client rest.DynatraceClient
+		_ = client
+
+		if !dryRun {
+			apiToken, err := environment.GetToken()
+			if err != nil {
+				return append(errorList, err)
+			}
+
+			client, err = rest.NewDynatraceClient(environment.GetEnvironmentUrl(), apiToken)
+			if err != nil {
+				return append(errorList, err)
+			}
+		}
+	}
+
+	return errorList
 }
