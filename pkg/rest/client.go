@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -31,7 +32,11 @@ import (
 )
 
 type DynatraceClient interface {
+	// Retrieves a list of error names as captured by the string property referenced in config.yaml
 	FetchErrors(config config.Config) (environmentErrors []string, err error)
+
+	// Retrieves user session data for sessions that encountered given error
+	FetchSessionsByError(config config.Config, envErr string) (sessions []interface{}, err error)
 }
 
 type dynatraceClientImpl struct {
@@ -95,11 +100,12 @@ func (d *dynatraceClientImpl) FetchErrors(config config.Config) (environmentErro
 	query := "SELECT DISTINCT stringProperties." + errorProp + ", count(*) FROM usersession WHERE " + application + "stringProperties." + errorProp + " IS NOT NULL"
 	params := url.Values{}
 	params.Add("query", query)
-	params.Add("startTimeStamp", fmt.Sprintf("%d", dayAgo))
-	params.Add("endTimeStamp", fmt.Sprintf("%d", now))
+	params.Add("startTimestamp", fmt.Sprintf("%d", dayAgo))
+	params.Add("endTimestamp", fmt.Sprintf("%d", now))
 	params.Add("addDeepLinkFields", "false")
 	params.Add("explain", "false")
 	fullUrl := d.environmentUrl + userSessionsTableAPI + "?" + params.Encode()
+	fmt.Println(fullUrl)
 
 	response, err := get(d.client, fullUrl, d.token)
 
@@ -113,8 +119,8 @@ func (d *dynatraceClientImpl) FetchErrors(config config.Config) (environmentErro
 	}
 
 	values := m["values"].([]interface{})
+
 	for i := range values {
-		util.Log.Debug(fmt.Sprintf("%#v", i))
 		value := values[i].([]interface{})
 		// TODO: Remove this
 		// Added limit of 10 for testing purposes
@@ -130,4 +136,136 @@ func (d *dynatraceClientImpl) FetchErrors(config config.Config) (environmentErro
 	}
 
 	return environmentErrors, nil
+}
+
+func (d *dynatraceClientImpl) FetchSessionsByError(config config.Config,
+	envErr string) (sessions []interface{}, err error) {
+
+	application := fmt.Sprintf("%s", config.GetProperty("application"))
+	errorProp := fmt.Sprintf("%s", config.GetProperty("error_prop"))
+	conversion := fmt.Sprintf("%s", config.GetProperty("conversion"))
+	useCase := config.GetUseCase()
+
+	if application != "" {
+		application = "useraction.application IS \"" + application + "\" AND "
+	}
+
+	timer := util.NewTimelineProvider()
+	now := timer.NowMillis()
+	sevenDaysAgo := timer.GetDaysBeforeMillis(7)
+
+	query := "SELECT count(*) FROM usersession WHERE " + application + "useraction.name IS \"" + conversion + "\" OR stringProperties." + errorProp + " IS \"" + envErr + "\" LIMIT 5000"
+	params := url.Values{}
+	params.Add("query", query)
+	params.Add("startTimestamp", fmt.Sprintf("%d", sevenDaysAgo))
+	params.Add("endTimestamp", fmt.Sprintf("%d", now))
+	params.Add("addDeepLinkFields", "false")
+	params.Add("explain", "false")
+	fullUrl := d.environmentUrl + userSessionsTableAPI + "?" + params.Encode()
+
+	response, err := get(d.client, fullUrl, d.token)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(response.Body, &m); err != nil {
+		return nil, err
+	}
+
+	extrapolation := m["extrapolationLevel"].(float64)
+	values := m["values"].([]interface{})
+	count := int(values[0].([]interface{})[0].(float64))
+
+	util.Log.Debug(fmt.Sprintf("Extrapolation level: %.0f and %d sessions returned.", extrapolation, count))
+
+	if extrapolation > 1 || count > 4999 {
+		var numberOfQueriesEx int
+		var numberOfQueriesLen int
+		var numberOfQueries int
+
+		if extrapolation > 1 {
+			numberOfQueriesEx = int(extrapolation) / 2
+		}
+		if count > 4999 {
+			numberOfQueriesLen = int(math.Round(float64(count / 5000)))
+		}
+		numberOfQueries = int(math.Max(float64(numberOfQueriesEx), float64(numberOfQueriesLen)))
+		util.Log.Info("Will split results in %d queries", numberOfQueries)
+
+		interval := (now - sevenDaysAgo) / int64(numberOfQueries)
+
+		for i := 0; i < numberOfQueries; i++ {
+			startTime := sevenDaysAgo + int64(i)*interval
+			endTime := sevenDaysAgo + int64(i+1)*interval
+			var query string
+
+			if useCase == "lost_basket" {
+				basketProp := fmt.Sprintf("%s", config.GetProperty("basket_prop"))
+				query += "SELECT internalUserId, stringProperties." + errorProp + ", startTime, endTime, useraction.name, doubleProperties." + basketProp
+				query += ", browserType FROM usersession WHERE " + application + "useraction.name IS \"" + conversion + "\" OR stringProperties."
+				query += errorProp + " IS \"" + envErr + "\" LIMIT 5000"
+			} else {
+				query += "SELECT internalUserId, stringProperties." + errorProp + ", startTime, endTime, useraction.name, browserType FROM usersession WHERE "
+				query += application + "useraction.name IS \"" + conversion + "\" OR stringProperties." + errorProp + " IS \"" + envErr + "\" LIMIT 5000"
+			}
+
+			params := url.Values{}
+			params.Add("query", query)
+			params.Add("startTimestamp", fmt.Sprintf("%d", startTime))
+			params.Add("endTimestamp", fmt.Sprintf("%d", endTime))
+			params.Add("addDeepLinkFields", "false")
+			params.Add("explain", "false")
+			fullUrl = d.environmentUrl + userSessionsTableAPI + "?" + params.Encode()
+
+			response, err := get(d.client, fullUrl, d.token)
+
+			if err != nil {
+				return nil, err
+			}
+
+			var m map[string]interface{}
+			if err := json.Unmarshal(response.Body, &m); err != nil {
+				return nil, err
+			}
+			values := m["values"].([]interface{})
+			sessions = append(sessions, values...)
+		}
+	} else {
+		var query string
+
+		if useCase == "lost_basket" {
+			basketProp := fmt.Sprintf("%s", config.GetProperty("basket_prop"))
+			query += "SELECT internalUserId, stringProperties." + errorProp + ", startTime, endTime, useraction.name, doubleProperties." + basketProp
+			query += ", browserType FROM usersession WHERE " + application + "useraction.name IS \"" + conversion + "\" OR stringProperties." + errorProp
+			query += " IS \"" + envErr + "\" LIMIT 5000"
+		} else {
+			query += "SELECT internalUserId, stringProperties." + errorProp + ", startTime, endTime, useraction.name, browserType FROM usersession WHERE "
+			query += application + "useraction.name IS \"" + conversion + "\" OR stringProperties." + errorProp + " IS \"" + envErr + "\" LIMIT 5000"
+		}
+
+		params := url.Values{}
+		params.Add("query", query)
+		params.Add("startTimestamp", fmt.Sprintf("%d", sevenDaysAgo))
+		params.Add("endTimestamp", fmt.Sprintf("%d", now))
+		params.Add("addDeepLinkFields", "false")
+		params.Add("explain", "false")
+		fullUrl = d.environmentUrl + userSessionsTableAPI + "?" + params.Encode()
+
+		response, err := get(d.client, fullUrl, d.token)
+
+		if err != nil {
+			return nil, err
+		}
+
+		var m map[string]interface{}
+		if err := json.Unmarshal(response.Body, &m); err != nil {
+			return nil, err
+		}
+		values = m["values"].([]interface{})
+		sessions = append(sessions, values...)
+	}
+
+	return sessions, nil
 }
