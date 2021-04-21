@@ -48,11 +48,13 @@ func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string
 		deploymentErrors[configIssue] = append(deploymentErrors[configIssue], err)
 	}
 
-	for _, configuration := range configs {
-		errors := execute(configuration, environments, dryRun, outputDir)
+	if !dryRun {
+		for _, configuration := range configs {
+			errors := execute(configuration, environments, outputDir)
 
-		if len(errors) > 0 {
-			deploymentErrors[configuration.GetId()] = errors
+			if len(errors) > 0 {
+				deploymentErrors[configuration.GetId()] = errors
+			}
 		}
 	}
 
@@ -84,8 +86,7 @@ func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string
 	}
 }
 
-func execute(config config.Config, environments map[string]environment.Environment,
-	dryRun bool, outputDir string) (errorList []error) {
+func execute(config config.Config, environments map[string]environment.Environment, outputDir string) (errorList []error) {
 	util.Log.Info("Running configuration %s", config.GetId())
 
 	for _, env := range config.GetEnvironments() {
@@ -93,20 +94,37 @@ func execute(config config.Config, environments map[string]environment.Environme
 
 		environment := environments[env]
 		var client rest.DynatraceClient
-		_ = client
 
-		if !dryRun {
-			apiToken, err := environment.GetToken()
-			if err != nil {
-				return append(errorList, err)
-			}
-
-			client, err = rest.NewDynatraceClient(environment.GetEnvironmentUrl(), apiToken)
-			if err != nil {
-				return append(errorList, err)
-			}
+		apiToken, err := environment.GetToken()
+		if err != nil {
+			return append(errorList, err)
 		}
+
+		client, err = rest.NewDynatraceClient(environment.GetEnvironmentUrl(), apiToken)
+		if err != nil {
+			return append(errorList, err)
+		}
+
+		environmentErrors, err := client.FetchErrors(config)
+
+		switch useCase := config.GetUseCase(); useCase {
+		case "lost_orders":
+			analyseLostOrders()
+		case "agent_hours":
+			analyseAgentHours()
+		case "incurred_costs":
+			analyseIncurredCosts()
+		default:
+			return append(errorList, fmt.Errorf("unrecognised value for use case: %s", useCase))
+		}
+
 	}
 
 	return errorList
 }
+
+func analyseLostOrders() {}
+
+func analyseAgentHours() {}
+
+func analyseIncurredCosts() {}
