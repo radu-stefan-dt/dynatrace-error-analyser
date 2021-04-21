@@ -68,7 +68,7 @@ func (d *defaultTimelineProvider) NowMillis() int64 {
 
 func (d *defaultTimelineProvider) GetDaysBeforeMillis(days int) int64 {
 	nowInLocalTimeZone := time.Now()
-	nowInLocalTimeZone = nowInLocalTimeZone.AddDate(0, -days, 0)
+	nowInLocalTimeZone = nowInLocalTimeZone.AddDate(0, 0, -days)
 	location, _ := time.LoadLocation("UTC")
 	utcNanos := nowInLocalTimeZone.In(location).UnixNano()
 
