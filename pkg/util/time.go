@@ -34,6 +34,12 @@ type TimelineProvider interface {
 	// Now Returns the current (client-side) time in UTC
 	Now() time.Time
 
+	// NowMillis returns the current (client-side) time in UTC Milliseconds
+	NowMillis() int64
+
+	// Takes number of days and returns the UTC Milliseconds from that many days ago
+	GetDaysBeforeMillis(days int) int64
+
 	// Sleep suspends the current goroutine for the specified duration
 	Sleep(duration time.Duration)
 }
@@ -50,6 +56,23 @@ func (d *defaultTimelineProvider) Now() time.Time {
 	nowInLocalTimeZone := time.Now()
 	location, _ := time.LoadLocation("UTC")
 	return nowInLocalTimeZone.In(location)
+}
+
+func (d *defaultTimelineProvider) NowMillis() int64 {
+	nowInLocalTimeZone := time.Now()
+	location, _ := time.LoadLocation("UTC")
+	utcNanos := nowInLocalTimeZone.In(location).UnixNano()
+
+	return utcNanos / 1_000_000
+}
+
+func (d *defaultTimelineProvider) GetDaysBeforeMillis(days int) int64 {
+	nowInLocalTimeZone := time.Now()
+	nowInLocalTimeZone = nowInLocalTimeZone.AddDate(0, -days, 0)
+	location, _ := time.LoadLocation("UTC")
+	utcNanos := nowInLocalTimeZone.In(location).UnixNano()
+
+	return utcNanos / 1_000_000
 }
 
 func (d *defaultTimelineProvider) Sleep(duration time.Duration) {
