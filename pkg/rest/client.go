@@ -19,15 +19,19 @@
 package rest
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/config"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/util"
 )
 
 type DynatraceClient interface {
+	FetchErrors(config config.Config) (environmentErrors []string, err error)
 }
 
 type dynatraceClientImpl struct {
@@ -35,6 +39,10 @@ type dynatraceClientImpl struct {
 	token          string
 	client         *http.Client
 }
+
+const (
+	userSessionsTableAPI string = "/api/v1/userSessionQueryLanguage/table"
+)
 
 // NewDynatraceClient creates a new DynatraceClient
 func NewDynatraceClient(environmentUrl, token string) (DynatraceClient, error) {
@@ -70,4 +78,56 @@ func NewDynatraceClient(environmentUrl, token string) (DynatraceClient, error) {
 
 func isNewDynatraceTokenFormat(token string) bool {
 	return strings.HasPrefix(token, "dt0c01.") && strings.Count(token, ".") == 2
+}
+
+func (d *dynatraceClientImpl) FetchErrors(config config.Config) (environmentErrors []string, err error) {
+	application := fmt.Sprintf("%s", config.GetProperty("application"))
+	errorProp := fmt.Sprintf("%s", config.GetProperty("error_prop"))
+
+	if application != "" {
+		application = "useraction.application IS \"" + application + "\" AND "
+	}
+
+	timer := util.NewTimelineProvider()
+	now := timer.NowMillis()
+	dayAgo := timer.GetDaysBeforeMillis(1)
+
+	query := "SELECT DISTINCT stringProperties." + errorProp + ", count(*) FROM usersession WHERE " + application + "stringProperties." + errorProp + " IS NOT NULL"
+	params := url.Values{}
+	params.Add("query", query)
+	params.Add("startTimeStamp", fmt.Sprintf("%d", dayAgo))
+	params.Add("endTimeStamp", fmt.Sprintf("%d", now))
+	params.Add("addDeepLinkFields", "false")
+	params.Add("explain", "false")
+	fullUrl := d.environmentUrl + userSessionsTableAPI + "?" + params.Encode()
+
+	response, err := get(d.client, fullUrl, d.token)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var m map[string]interface{}
+	if err := json.Unmarshal(response.Body, &m); err != nil {
+		return nil, err
+	}
+
+	values := m["values"].([]interface{})
+	for i := range values {
+		util.Log.Debug(fmt.Sprintf("%#v", i))
+		value := values[i].([]interface{})
+		// TODO: Remove this
+		// Added limit of 10 for testing purposes
+		if i == 10 {
+			break
+		}
+		errorName := value[0].(string)
+		errorCount := value[1].(float64)
+
+		if errorCount < 4000 {
+			environmentErrors = append(environmentErrors, errorName)
+		}
+	}
+
+	return environmentErrors, nil
 }
