@@ -106,16 +106,27 @@ func execute(config config.Config, environments map[string]environment.Environme
 		}
 
 		environmentErrors, err := client.FetchErrors(config)
+		if err != nil {
+			return append(errorList, err)
+		}
+		for _, envErr := range environmentErrors {
+			userSessions, err := client.FetchSessionsByError(config, envErr)
+			if err != nil {
+				return append(errorList, err)
+			}
 
-		switch useCase := config.GetUseCase(); useCase {
-		case "lost_orders":
-			analyseLostOrders()
-		case "agent_hours":
-			analyseAgentHours()
-		case "incurred_costs":
-			analyseIncurredCosts()
-		default:
-			return append(errorList, fmt.Errorf("unrecognised value for use case: %s", useCase))
+			util.Log.Debug(fmt.Sprintf("Loaded %d user sessions!", len(userSessions)))
+
+			switch useCase := config.GetUseCase(); useCase {
+			case "lost_orders":
+				analyseLostOrders(client, config, environmentErrors)
+			case "agent_hours":
+				analyseAgentHours(client, config, environmentErrors)
+			case "incurred_costs":
+				analyseIncurredCosts(client, config, environmentErrors)
+			default:
+				return append(errorList, fmt.Errorf("unrecognised value for use case: %s", useCase))
+			}
 		}
 
 	}
@@ -123,8 +134,14 @@ func execute(config config.Config, environments map[string]environment.Environme
 	return errorList
 }
 
-func analyseLostOrders() {}
+func analyseLostOrders(client rest.DynatraceClient, config config.Config, environmentErrors []string) error {
+	return nil
+}
 
-func analyseAgentHours() {}
+func analyseAgentHours(client rest.DynatraceClient, config config.Config, environmentErrors []string) error {
+	return nil
+}
 
-func analyseIncurredCosts() {}
+func analyseIncurredCosts(client rest.DynatraceClient, config config.Config, environmentErrors []string) error {
+	return nil
+}
