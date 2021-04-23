@@ -141,9 +141,9 @@ func (d *dynatraceClientImpl) FetchErrors(config config.Config) (environmentErro
 func (d *dynatraceClientImpl) FetchSessionsByError(config config.Config,
 	envErr string) (sessions []interface{}, err error) {
 
-	application := fmt.Sprintf("%s", config.GetProperty("application"))
-	errorProp := fmt.Sprintf("%s", config.GetProperty("error_prop"))
-	conversion := fmt.Sprintf("%s", config.GetProperty("conversion"))
+	application := config.GetProperty("application").(string)
+	errorProp := config.GetProperty("error_prop").(string)
+	conversion := config.GetProperty("conversion").(string)
 	useCase := config.GetUseCase()
 
 	if application != "" {
