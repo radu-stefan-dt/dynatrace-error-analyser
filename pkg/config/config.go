@@ -34,7 +34,7 @@ type Config interface {
 type UseCase string
 
 const (
-	LostOrders    UseCase = "lost_orders"
+	LostBasket    UseCase = "lost_basket"
 	AgentHours    UseCase = "agent_hours"
 	IncurredCosts UseCase = "incurred_costs"
 )
@@ -131,8 +131,8 @@ func NewConfiguration(id string, configName string, useCase UseCase,
 
 func getValidUseCase(uc string) (UseCase, error) {
 	switch uc {
-	case "lost_orders":
-		return LostOrders, nil
+	case "lost_basket":
+		return LostBasket, nil
 	case "agent_hours":
 		return AgentHours, nil
 	case "incurred_costs":
@@ -144,7 +144,7 @@ func getValidUseCase(uc string) (UseCase, error) {
 
 func isValidUseCase(uc UseCase) error {
 	switch uc {
-	case LostOrders, AgentHours, IncurredCosts:
+	case LostBasket, AgentHours, IncurredCosts:
 		return nil
 	}
 	return errors.New("invalid config use case")
@@ -167,7 +167,36 @@ func (s *configImpl) GetProperty(property string) interface{} {
 	if !ok {
 		return nil
 	}
-	return prop
+
+	switch property {
+	case "error_prop", "application", "conversion", "basket_prop":
+		switch p := prop.(type) {
+		case string:
+			return p
+		default:
+			return nil
+		}
+	case "multiplication_factor", "users_calling_in", "length_of_call":
+		switch p := prop.(type) {
+		case float64:
+			return int(p)
+		case int:
+			return p
+		default:
+			return nil
+		}
+	case "margin", "cost_of_call", "cost_of_error":
+		switch p := prop.(type) {
+		case int:
+			return float64(p)
+		case float64:
+			return p
+		default:
+			return nil
+		}
+	default:
+		return nil
+	}
 }
 
 func (s *configImpl) GetUseCase() UseCase {
