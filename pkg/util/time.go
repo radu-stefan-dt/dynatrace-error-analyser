@@ -24,8 +24,6 @@ import (
 	"time"
 )
 
-//go:generate mockgen -source=time.go -destination=time_mock.go -package=util TimelineProvider
-
 // TimelineProvider abstracts away the time.Now() and time.Sleep(time.Duration) functions to make code unit-testable
 // Whenever you need to get the current time, or want to pause the current goroutine (sleep), please consider using
 // this interface
