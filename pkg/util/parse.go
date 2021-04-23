@@ -33,7 +33,7 @@ func ReplacePathSeparators(path string) (newPath string) {
 }
 
 // Safe way to extract the required details from a user session, in the correct format, avoiding nil panics
-func UnpackSession(useCase string, session []interface{}) (sessionDetails map[string]interface{}) {
+func UnpackSession(isLostBasket bool, session []interface{}) (sessionDetails map[string]interface{}) {
 	var (
 		actions     []string
 		sErr        string
@@ -60,7 +60,8 @@ func UnpackSession(useCase string, session []interface{}) (sessionDetails map[st
 		}
 		actions = append(actions, action)
 	}
-	if useCase == "lost_basket" {
+
+	if isLostBasket {
 		if fmt.Sprintf("%T", session[5]) == "float64" {
 			basketValue = session[5].(float64)
 		}

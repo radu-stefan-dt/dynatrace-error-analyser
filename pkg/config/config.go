@@ -10,7 +10,7 @@
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * GNU General Public License for more detailc.
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see: https://www.gnu.org/licenses/
@@ -26,9 +26,10 @@ import (
 type Config interface {
 	GetId() string
 	GetName() string
-	GetUseCase() UseCase
+	GetUseCases() []UseCase
 	GetProperty(property string) interface{}
 	GetEnvironments() []string
+	HasUseCase(string) bool
 }
 
 type UseCase string
@@ -42,7 +43,7 @@ const (
 type configImpl struct {
 	id           string
 	name         string
-	useCase      UseCase
+	useCases     []UseCase
 	properties   map[string]interface{}
 	environments []string
 }
@@ -71,7 +72,7 @@ func NewConfigurations(maps map[string]map[string]interface{}) (map[string]Confi
 
 func newConfig(id string, properties map[string]interface{}) (Config, error) {
 	var configName string
-	var useCase UseCase
+	var useCases []UseCase
 	var configEnvs []string
 	configProps := make(map[string]interface{})
 
@@ -81,12 +82,6 @@ func newConfig(id string, properties map[string]interface{}) (Config, error) {
 			switch k {
 			case "name":
 				configName = t
-			case "use_case":
-				var err error
-				useCase, err = getValidUseCase(t)
-				if err != nil {
-					return nil, fmt.Errorf("%#v is not a valid configuration use case", t)
-				}
 			default:
 				return nil, fmt.Errorf("invalid property %s found", k)
 			}
@@ -105,28 +100,73 @@ func newConfig(id string, properties map[string]interface{}) (Config, error) {
 				for _, env := range t {
 					configEnvs = append(configEnvs, fmt.Sprintf("%s", env))
 				}
+			case "use_cases":
+				for _, uc := range t {
+					useCase, err := getValidUseCase(uc.(string))
+					if err != nil {
+						return nil, err
+					}
+					useCases = append(useCases, useCase)
+				}
 			default:
-				return nil, fmt.Errorf("invalid format for %s. only environments can be specified as a list", k)
+				return nil, fmt.Errorf("invalid format for %q. only environments and use_cases can be specified as a list", k)
 			}
 		default:
-			return nil, fmt.Errorf("invalid format for configuration detail %s", k)
+			return nil, fmt.Errorf("invalid format for configuration detail %q", k)
 		}
 	}
 
-	// TODO: need a final check of all mandatory details for creating a valid config
+	err := checkMandatoryProperties(useCases, configProps)
+	if err != nil {
+		return nil, err
+	}
 
-	return NewConfiguration(id, configName, useCase, configProps, configEnvs), nil
+	return NewConfiguration(id, configName, useCases, configProps, configEnvs), nil
 }
 
-func NewConfiguration(id string, configName string, useCase UseCase,
+func getMandatoryProperties(uc UseCase) []string {
+	props := []string{"error_prop", "conversion"}
+	switch uc {
+	case LostBasket:
+		props = append(props, "basket_prop")
+	case AgentHours:
+		props = append(props, "users_calling_in", "length_of_call")
+	case IncurredCosts:
+		props = append(props, "cost_of_error")
+	}
+
+	return props
+}
+
+func NewConfiguration(id string, configName string, useCases []UseCase,
 	configProps map[string]interface{}, configEnvs []string) Config {
 	return &configImpl{
 		id:           id,
 		name:         configName,
-		useCase:      useCase,
+		useCases:     useCases,
 		properties:   configProps,
 		environments: configEnvs,
 	}
+}
+
+func checkMandatoryProperties(useCases []UseCase, props map[string]interface{}) error {
+	for _, useCase := range useCases {
+		mProps := getMandatoryProperties(useCase)
+		for _, mp := range mProps {
+			found := false
+			for p := range props {
+				if p == mp {
+					found = true
+				}
+			}
+
+			if !found {
+				return fmt.Errorf("use case %s is missing mandatory properties", useCase)
+			}
+		}
+	}
+
+	return nil
 }
 
 func getValidUseCase(uc string) (UseCase, error) {
@@ -138,7 +178,7 @@ func getValidUseCase(uc string) (UseCase, error) {
 	case "incurred_costs":
 		return IncurredCosts, nil
 	default:
-		return "", fmt.Errorf("%s is not a valid config type", uc)
+		return "", fmt.Errorf("%q is not a valid use case", uc)
 	}
 }
 
@@ -150,20 +190,30 @@ func isValidUseCase(uc UseCase) error {
 	return errors.New("invalid config use case")
 }
 
-func (s *configImpl) GetId() string {
-	return s.id
+func (c *configImpl) HasUseCase(uc string) bool {
+	for _, useCase := range c.useCases {
+		if string(useCase) == uc {
+			return true
+		}
+	}
+
+	return false
 }
 
-func (s *configImpl) GetEnvironments() []string {
-	return s.environments
+func (c *configImpl) GetId() string {
+	return c.id
 }
 
-func (s *configImpl) GetName() string {
-	return s.name
+func (c *configImpl) GetEnvironments() []string {
+	return c.environments
 }
 
-func (s *configImpl) GetProperty(property string) interface{} {
-	prop, ok := s.properties[property]
+func (c *configImpl) GetName() string {
+	return c.name
+}
+
+func (c *configImpl) GetProperty(property string) interface{} {
+	prop, ok := c.properties[property]
 	if !ok {
 		return nil
 	}
@@ -199,10 +249,12 @@ func (s *configImpl) GetProperty(property string) interface{} {
 	}
 }
 
-func (s *configImpl) GetUseCase() UseCase {
-	if err := isValidUseCase(s.useCase); err == nil {
-		return s.useCase
-	} else {
-		return ""
+func (c *configImpl) GetUseCases() []UseCase {
+	for _, useCase := range c.useCases {
+		if err := isValidUseCase(useCase); err == nil {
+			return nil
+		}
 	}
+
+	return c.useCases
 }

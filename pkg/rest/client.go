@@ -144,7 +144,6 @@ func (d *dynatraceClientImpl) FetchSessionsByError(config config.Config,
 	application := config.GetProperty("application").(string)
 	errorProp := config.GetProperty("error_prop").(string)
 	conversion := config.GetProperty("conversion").(string)
-	useCase := config.GetUseCase()
 
 	if application != "" {
 		application = "useraction.application IS \"" + application + "\" AND "
@@ -201,7 +200,7 @@ func (d *dynatraceClientImpl) FetchSessionsByError(config config.Config,
 			endTime := sevenDaysAgo + int64(i+1)*interval
 			var query string
 
-			if useCase == "lost_basket" {
+			if config.HasUseCase("lost_basket") {
 				basketProp := fmt.Sprintf("%s", config.GetProperty("basket_prop"))
 				query += "SELECT internalUserId, stringProperties." + errorProp + ", startTime, endTime, useraction.name, doubleProperties." + basketProp
 				query += ", browserType FROM usersession WHERE " + application + "useraction.name IS \"" + conversion + "\" OR stringProperties."
@@ -235,7 +234,7 @@ func (d *dynatraceClientImpl) FetchSessionsByError(config config.Config,
 	} else {
 		var query string
 
-		if useCase == "lost_basket" {
+		if config.HasUseCase("lost_basket") {
 			basketProp := fmt.Sprintf("%s", config.GetProperty("basket_prop"))
 			query += "SELECT internalUserId, stringProperties." + errorProp + ", startTime, endTime, useraction.name, doubleProperties." + basketProp
 			query += ", browserType FROM usersession WHERE " + application + "useraction.name IS \"" + conversion + "\" OR stringProperties." + errorProp

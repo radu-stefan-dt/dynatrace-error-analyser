@@ -138,14 +138,15 @@ func analyseSessions(userSessions []interface{}, envErr string,
 	config config.Config) (results map[string]interface{}, err error) {
 
 	conversion := config.GetProperty("conversion").(string)
-	useCase := config.GetUseCase()
-	errorAndAbandon, errorAndConvert, convert := splitUserSessions(envErr, conversion, useCase, userSessions)
+	useCases := config.GetUseCases()
+	isLostBasket := config.HasUseCase("lost_basket")
+	errorAndAbandon, errorAndConvert, convert := splitUserSessions(envErr, conversion, isLostBasket, userSessions)
 
 	totalWithError := len(errorAndAbandon) + len(errorAndConvert)
 	util.Log.Info("\t\t\t%d users got the error", totalWithError)
 	util.Log.Info("\t\t\t%d users got the error and abandoned", len(errorAndAbandon))
 
-	stats := calculateAbandonStats(useCase, errorAndAbandon, convert)
+	stats := calculateAbandonStats(config, errorAndAbandon, convert)
 	lostTimes := stats["lost_times"].([]int64)
 	lostBaskets := stats["lost_baskets"].(float64)
 	lostUsers := stats["lost_users"].(int)
@@ -176,7 +177,7 @@ func analyseSessions(userSessions []interface{}, envErr string,
 		}
 	}
 	results = make(map[string]interface{})
-	results["use_case"] = useCase
+	results["use_cases"] = useCases
 	results["impacted_users"] = totalWithError
 	results["lost_users"] = stats["lost_users"]
 	results["unconverted_users"] = len(errorAndAbandon)
@@ -188,7 +189,7 @@ func analyseSessions(userSessions []interface{}, envErr string,
 	}
 	results["date_breakdown"] = dateBreakdown
 
-	if useCase == "lost_basket" {
+	if config.HasUseCase("lost_basket") {
 		var multiFactor int = 1
 		var margin float64 = 15
 		if config.GetProperty("multiplication_factor") != nil {
@@ -206,7 +207,7 @@ func analyseSessions(userSessions []interface{}, envErr string,
 		results["lost_money_14d"] = lostMoney * 2
 		results["lost_money_21d"] = lostMoney * 3
 		results["lost_money_28d"] = lostMoney * 4
-	} else if useCase == "agent_hours" {
+	} else if config.HasUseCase("agent_hours") {
 		usersCalling := config.GetProperty("users_calling_in").(int)
 		callLength := config.GetProperty("length_of_call").(int)
 		callCost := config.GetProperty("cost_of_call").(float64)
@@ -226,7 +227,7 @@ func analyseSessions(userSessions []interface{}, envErr string,
 		results["lost_agent_hours_14d"] = lostAgentHoursHr * 2
 		results["lost_agent_hours_21d"] = lostAgentHoursHr * 3
 		results["lost_agent_hours_28d"] = lostAgentHoursHr * 4
-	} else if useCase == "incurred_costs" {
+	} else if config.HasUseCase("incurred_costs") {
 		errorCost := config.GetProperty("cost_of_error").(float64)
 		costsIncurred := lostUsers * int(errorCost)
 
@@ -239,13 +240,13 @@ func analyseSessions(userSessions []interface{}, envErr string,
 	return results, nil
 }
 
-func splitUserSessions(envErr string, conversion string, useCase config.UseCase, userSessions []interface{}) (
+func splitUserSessions(envErr string, conversion string, isLostBasket bool, userSessions []interface{}) (
 	errorAndAbandon []interface{}, errorAndConvert []interface{}, convert []interface{}) {
 
 	for i := 0; i < len(userSessions); i++ {
 		var converted bool
 		session := userSessions[i].([]interface{})
-		sDetails := util.UnpackSession(string(useCase), session)
+		sDetails := util.UnpackSession(isLostBasket, session)
 		sessionErr := sDetails["error"].(string)
 		sessionActions := sDetails["actions"].([]string)
 
@@ -269,7 +270,7 @@ func splitUserSessions(envErr string, conversion string, useCase config.UseCase,
 	return errorAndAbandon, errorAndConvert, convert
 }
 
-func calculateAbandonStats(useCase config.UseCase, errorAndAbandon []interface{},
+func calculateAbandonStats(config config.Config, errorAndAbandon []interface{},
 	convert []interface{}) (stats map[string]interface{}) {
 	var (
 		savedBaskets float64
@@ -281,11 +282,12 @@ func calculateAbandonStats(useCase config.UseCase, errorAndAbandon []interface{}
 		lostTablet   int
 		lostTimes    []int64
 	)
+	isLostBasket := config.HasUseCase("lost_basket")
 	for i := 0; i < len(errorAndAbandon); i++ {
 		var saved bool
 
 		session := errorAndAbandon[i].([]interface{})
-		sDetails := util.UnpackSession(string(useCase), session)
+		sDetails := util.UnpackSession(isLostBasket, session)
 		userId := sDetails["userId"].(string)
 		startTime := sDetails["startTime"].(int64)
 		browserType := sDetails["browserType"].(string)
@@ -293,7 +295,7 @@ func calculateAbandonStats(useCase config.UseCase, errorAndAbandon []interface{}
 
 		for i2 := 0; i2 < len(convert); i2++ {
 			convertedSession := convert[i].([]interface{})
-			csDetails := util.UnpackSession(string(useCase), convertedSession)
+			csDetails := util.UnpackSession(isLostBasket, convertedSession)
 			convertedId := csDetails["userId"].(string)
 			convertedStartTime := csDetails["startTime"].(int64)
 
@@ -305,14 +307,14 @@ func calculateAbandonStats(useCase config.UseCase, errorAndAbandon []interface{}
 		if saved {
 			savedUsers++
 
-			if useCase == "lost_basket" {
+			if isLostBasket {
 				savedBaskets += basketValue
 			}
 		} else {
 			lostUsers++
 			lostTimes = append(lostTimes, startTime)
 
-			if useCase == "lost_basket" {
+			if isLostBasket {
 				lostBaskets += basketValue
 			}
 			if browserType == "Mobile Browser" {
