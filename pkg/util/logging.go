@@ -19,8 +19,12 @@
 package util
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httputil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jcelliott/lumber"
@@ -28,7 +32,9 @@ import (
 
 // Log is the shared Lumber Logger logging to console and after calling SetupLogging also to file
 var Log lumber.Logger = lumber.NewConsoleLogger(lumber.INFO)
+
 var requestLogFile *os.File
+var responseLogFile *os.File
 
 // SetupLogging is used to initialize the shared file Logger once the necesary setup config is available
 func SetupLogging(verbose bool) error {
@@ -90,4 +96,97 @@ func prepareLogFile(file string) (*os.File, error) {
 
 func IsRequestLoggingActive() bool {
 	return requestLogFile != nil
+}
+
+func IsResponseLoggingActive() bool {
+	return responseLogFile != nil
+}
+
+func LogRequest(id string, request *http.Request) error {
+	if !IsRequestLoggingActive() {
+		return nil
+	}
+
+	var dumpBody = false
+
+	if contentTypes, ok := request.Header["Content-Type"]; ok {
+		contentType := contentTypes[len(contentTypes)-1]
+
+		dumpBody = shouldDumpBody(contentType)
+	}
+
+	dump, err := httputil.DumpRequestOut(request, dumpBody)
+
+	if err != nil {
+		return err
+	}
+
+	stringDump := string(dump)
+
+	_, err = requestLogFile.WriteString(fmt.Sprintf(`Request-ID: %s
+%s
+=========================
+`, id, stringDump))
+
+	if err != nil {
+		return err
+	}
+
+	return requestLogFile.Sync()
+}
+
+func LogResponse(id string, response *http.Response) error {
+	if !IsResponseLoggingActive() {
+		return nil
+	}
+
+	var dumpBody = false
+
+	if contentTypes, ok := response.Header["Content-Type"]; ok {
+		contentType := contentTypes[len(contentTypes)-1]
+
+		dumpBody = shouldDumpBody(contentType)
+	}
+
+	dump, err := httputil.DumpResponse(response, dumpBody)
+
+	if err != nil {
+		return err
+	}
+
+	if id != "" {
+		_, err = responseLogFile.WriteString(fmt.Sprintf("Request-ID: %s\n", id))
+
+		if err != nil {
+			return err
+		}
+	}
+
+	stringDump := string(dump)
+
+	_, err = responseLogFile.WriteString(fmt.Sprintf(`%s
+=========================
+`, stringDump))
+
+	if err != nil {
+		return err
+	}
+
+	return responseLogFile.Sync()
+}
+
+func shouldDumpBody(contentType string) bool {
+	if strings.HasPrefix("text/", contentType) {
+		return true
+	}
+
+	if strings.HasPrefix("application/json", contentType) {
+		return true
+	}
+
+	if strings.HasPrefix("application/xml", contentType) {
+		return true
+	}
+
+	return false
 }

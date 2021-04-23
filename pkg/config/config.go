@@ -26,23 +26,23 @@ import (
 type Config interface {
 	GetId() string
 	GetName() string
-	GetType() ConfigType
+	GetUseCase() UseCase
 	GetProperty(property string) interface{}
 	GetEnvironments() []string
 }
 
-type ConfigType string
+type UseCase string
 
 const (
-	LostOrders    ConfigType = "lost_orders"
-	AgentHours    ConfigType = "agent_hours"
-	IncurredCosts ConfigType = "incurred_costs"
+	LostBasket    UseCase = "lost_basket"
+	AgentHours    UseCase = "agent_hours"
+	IncurredCosts UseCase = "incurred_costs"
 )
 
 type configImpl struct {
 	id           string
 	name         string
-	ctype        ConfigType
+	useCase      UseCase
 	properties   map[string]interface{}
 	environments []string
 }
@@ -71,7 +71,7 @@ func NewConfigurations(maps map[string]map[string]interface{}) (map[string]Confi
 
 func newConfig(id string, properties map[string]interface{}) (Config, error) {
 	var configName string
-	var configType ConfigType
+	var useCase UseCase
 	var configEnvs []string
 	configProps := make(map[string]interface{})
 
@@ -81,11 +81,11 @@ func newConfig(id string, properties map[string]interface{}) (Config, error) {
 			switch k {
 			case "name":
 				configName = t
-			case "type":
+			case "use_case":
 				var err error
-				configType, err = getValidConfigType(t)
+				useCase, err = getValidUseCase(t)
 				if err != nil {
-					return nil, fmt.Errorf("%#v is not a valid configuration type", t)
+					return nil, fmt.Errorf("%#v is not a valid configuration use case", t)
 				}
 			default:
 				return nil, fmt.Errorf("invalid property %s found", k)
@@ -115,39 +115,39 @@ func newConfig(id string, properties map[string]interface{}) (Config, error) {
 
 	// TODO: need a final check of all mandatory details for creating a valid config
 
-	return NewConfiguration(id, configName, configType, configProps, configEnvs), nil
+	return NewConfiguration(id, configName, useCase, configProps, configEnvs), nil
 }
 
-func NewConfiguration(id string, configName string, configType ConfigType,
+func NewConfiguration(id string, configName string, useCase UseCase,
 	configProps map[string]interface{}, configEnvs []string) Config {
 	return &configImpl{
 		id:           id,
 		name:         configName,
-		ctype:        configType,
+		useCase:      useCase,
 		properties:   configProps,
 		environments: configEnvs,
 	}
 }
 
-func getValidConfigType(ct string) (ConfigType, error) {
-	switch ct {
-	case "lost_orders":
-		return LostOrders, nil
+func getValidUseCase(uc string) (UseCase, error) {
+	switch uc {
+	case "lost_basket":
+		return LostBasket, nil
 	case "agent_hours":
 		return AgentHours, nil
 	case "incurred_costs":
 		return IncurredCosts, nil
 	default:
-		return "", fmt.Errorf("%s is not a valid config type", ct)
+		return "", fmt.Errorf("%s is not a valid config type", uc)
 	}
 }
 
-func isValidConfigType(ct ConfigType) error {
-	switch ct {
-	case LostOrders, AgentHours, IncurredCosts:
+func isValidUseCase(uc UseCase) error {
+	switch uc {
+	case LostBasket, AgentHours, IncurredCosts:
 		return nil
 	}
-	return errors.New("invalid config type")
+	return errors.New("invalid config use case")
 }
 
 func (s *configImpl) GetId() string {
@@ -167,12 +167,41 @@ func (s *configImpl) GetProperty(property string) interface{} {
 	if !ok {
 		return nil
 	}
-	return prop
+
+	switch property {
+	case "error_prop", "application", "conversion", "basket_prop":
+		switch p := prop.(type) {
+		case string:
+			return p
+		default:
+			return nil
+		}
+	case "multiplication_factor", "users_calling_in", "length_of_call":
+		switch p := prop.(type) {
+		case float64:
+			return int(p)
+		case int:
+			return p
+		default:
+			return nil
+		}
+	case "margin", "cost_of_call", "cost_of_error":
+		switch p := prop.(type) {
+		case int:
+			return float64(p)
+		case float64:
+			return p
+		default:
+			return nil
+		}
+	default:
+		return nil
+	}
 }
 
-func (s *configImpl) GetType() ConfigType {
-	if err := isValidConfigType(s.ctype); err == nil {
-		return s.ctype
+func (s *configImpl) GetUseCase() UseCase {
+	if err := isValidUseCase(s.useCase); err == nil {
+		return s.useCase
 	} else {
 		return ""
 	}

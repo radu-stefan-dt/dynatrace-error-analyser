@@ -19,13 +19,67 @@
 package util
 
 import (
+	"fmt"
 	"os"
 	"strings"
 )
 
+// Replace whatever path separator was used with the correct one for the current O/S
 func ReplacePathSeparators(path string) (newPath string) {
 	newPath = strings.ReplaceAll(path, "\\", string(os.PathSeparator))
 	newPath = strings.ReplaceAll(newPath, "/", string(os.PathSeparator))
 
 	return newPath
+}
+
+// Safe way to extract the required details from a user session, in the correct format, avoiding nil panics
+func UnpackSession(useCase string, session []interface{}) (sessionDetails map[string]interface{}) {
+	var (
+		actions     []string
+		sErr        string
+		browserType string
+		userId      string
+		startTime   int64
+		basketValue float64
+	)
+
+	if fmt.Sprintf("%T", session[0]) == "string" {
+		userId = session[0].(string)
+	}
+	if fmt.Sprintf("%T", session[1]) == "string" {
+		sErr = session[1].(string)
+	}
+	if fmt.Sprintf("%T", session[2]) == "float64" {
+		startTime = int64(session[2].(float64))
+	}
+	rawActions := session[4].([]interface{})
+	for i := 0; i < len(rawActions); i++ {
+		var action string
+		if fmt.Sprintf("%T", rawActions[i]) == "string" {
+			action = rawActions[i].(string)
+		}
+		actions = append(actions, action)
+	}
+	if useCase == "lost_basket" {
+		if fmt.Sprintf("%T", session[5]) == "float64" {
+			basketValue = session[5].(float64)
+		}
+		if fmt.Sprintf("%T", session[6]) == "string" {
+			browserType = session[6].(string)
+		}
+	} else {
+		if fmt.Sprintf("%T", session[5]) == "string" {
+			browserType = session[5].(string)
+		}
+	}
+
+	sessionDetails = make(map[string]interface{})
+	sessionDetails["error"] = sErr
+	sessionDetails["userId"] = userId
+	sessionDetails["actions"] = actions
+	sessionDetails["startTime"] = startTime
+	sessionDetails["basketValue"] = basketValue
+	sessionDetails["browserType"] = browserType
+
+	return sessionDetails
 }
