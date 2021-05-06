@@ -30,6 +30,7 @@ type Environment interface {
 	GetId() string
 	GetEnvironmentUrl() string
 	GetToken() (string, error)
+	GetName() string
 }
 
 type environmentImpl struct {
@@ -95,6 +96,10 @@ func (s *environmentImpl) GetId() string {
 
 func (s *environmentImpl) GetEnvironmentUrl() string {
 	return s.environmentUrl
+}
+
+func (s *environmentImpl) GetName() string {
+	return s.name
 }
 
 func (s *environmentImpl) GetToken() (string, error) {
