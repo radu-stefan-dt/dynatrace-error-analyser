@@ -30,8 +30,8 @@ The purpose of the tool is to be able to analyse errors detected by Dynatrace ac
   - [Basic Usage](#basic-usage)
       - [Examples:](#examples)
   - [File requirements](#file-requirements)
-      - [Environments file](#environments-file)
-      - [Config file](#config-file)
+    - [Environments file](#environments-file)
+    - [Config file](#config-file)
   - [Reporting](#reporting)
 
 ---
@@ -100,7 +100,7 @@ To function properly, `derran` expects from you two YAML files:
 2. Configurations file
     * Contains the details of how `derran` should analyse errors in the specified environments
 
-#### Environments file
+### Environments file
 
 This file is mandatory for running the tool and it's passed in with flag ```--environments, -e```. It must be an absolute or relative path to a YAML file. The contents define all the environments `derran` should connect to and how to do so.
 
@@ -137,7 +137,7 @@ foobar:
     - mc-cookie: "FOOBAR_MC_COOKIE"
 ```
 
-#### Config file
+### Config file
 
 This file is mandatory for running the tool and is passed in with flag ```--config, -c```. It must be an absolute or relative path to a YAML file. The contents define all configurations `derran` should use when analysing errors in your Dynatrace environments.
 
