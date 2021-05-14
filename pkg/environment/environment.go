@@ -16,6 +16,7 @@
  * along with this program.  If not, see: https://www.gnu.org/licenses/
  **/
 
+// Package environment defines a Dynatrace Environment
 package environment
 
 import (
@@ -40,6 +41,9 @@ type environmentImpl struct {
 	envToken       string
 }
 
+// NewEnvironments creates one or more environments from a map of details.
+// The resulting Environments are mapped by the unique ID as the key. Different errors that
+// may occur during parsing and validation are collated and returned as a list of errors.
 func NewEnvironments(maps map[string]map[string]string) (map[string]Environment, []error) {
 
 	environments := make(map[string]Environment)
@@ -77,6 +81,8 @@ func newEnvironment(id string, properties map[string]string) (Environment, error
 	return NewEnvironment(id, environmentName, environmentUrl, envTokenName, envToken), nil
 }
 
+// NewEnvironment creates a new Environment based on mandatory details.
+// It should only be used with clean data. Any pre validation and checking should be done in newEnvironment.
 func NewEnvironment(id string, name string, environmentUrl string, envTokenName string, envToken string) Environment {
 	environmentUrl = strings.TrimSuffix(environmentUrl, "/")
 
@@ -89,14 +95,17 @@ func NewEnvironment(id string, name string, environmentUrl string, envTokenName 
 	}
 }
 
+// GetId returns an environment's ID
 func (s *environmentImpl) GetId() string {
 	return s.id
 }
 
+// GetEnvironmentUrl returns an environment's URL
 func (s *environmentImpl) GetEnvironmentUrl() string {
 	return s.environmentUrl
 }
 
+// GetToken returns the value of the API Token associated with the Dynatrace environment.
 func (s *environmentImpl) GetToken() (string, error) {
 	if s.envToken != "" {
 		return s.envToken, nil
