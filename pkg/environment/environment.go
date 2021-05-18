@@ -31,6 +31,7 @@ type Environment interface {
 	GetId() string
 	GetEnvironmentUrl() string
 	GetToken() (string, error)
+	GetName() string
 }
 
 type environmentImpl struct {
@@ -103,6 +104,10 @@ func (s *environmentImpl) GetId() string {
 // GetEnvironmentUrl returns an environment's URL
 func (s *environmentImpl) GetEnvironmentUrl() string {
 	return s.environmentUrl
+}
+
+func (s *environmentImpl) GetName() string {
+	return s.name
 }
 
 // GetToken returns the value of the API Token associated with the Dynatrace environment.

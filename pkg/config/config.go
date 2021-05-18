@@ -251,7 +251,7 @@ func (c *configImpl) GetProperty(property string) interface{} {
 
 func (c *configImpl) GetUseCases() []UseCase {
 	for _, useCase := range c.useCases {
-		if err := isValidUseCase(useCase); err == nil {
+		if err := isValidUseCase(useCase); err != nil {
 			return nil
 		}
 	}

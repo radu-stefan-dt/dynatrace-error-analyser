@@ -26,6 +26,7 @@ import (
 
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/config"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/environment"
+	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/report"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/rest"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/util"
 	"github.com/spf13/afero"
@@ -36,8 +37,6 @@ func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string
 	configs, configErrors := config.LoadConfigList(configFile, fs)
 
 	outputDir = filepath.Clean(outputDir)
-	_ = outputDir
-	_ = configs
 
 	var deploymentErrors = make(map[string][]error)
 
@@ -52,7 +51,7 @@ func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string
 
 	if !dryRun {
 		for _, configuration := range configs {
-			errors := execute(configuration, environments, outputDir)
+			errors := execute(configuration, environments, outputDir, fs)
 
 			if len(errors) > 0 {
 				deploymentErrors[configuration.GetId()] = errors
@@ -88,7 +87,7 @@ func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string
 	}
 }
 
-func execute(config config.Config, environments map[string]environment.Environment, outputDir string) (errorList []error) {
+func execute(config config.Config, environments map[string]environment.Environment, outputDir string, fs afero.Fs) (errorList []error) {
 	util.Log.Info("Running configuration %s", config.GetId())
 
 	for _, env := range config.GetEnvironments() {
@@ -111,6 +110,7 @@ func execute(config config.Config, environments map[string]environment.Environme
 		if err != nil {
 			return append(errorList, err)
 		}
+		reportData := make(map[string]map[string]interface{})
 		for _, envErr := range environmentErrors {
 			util.Log.Info("\t\tAnalysisng error %s", envErr)
 			userSessions, err := client.FetchSessionsByError(config, envErr)
@@ -126,9 +126,12 @@ func execute(config config.Config, environments map[string]environment.Environme
 				return append(errorList, err)
 			}
 
-			util.Log.Debug("\t\tResults are in:\n %#v", results)
-		}
+			reportData[envErr] = results
 
+		}
+		if err := report.CreateReport(environment, config, reportData, outputDir, fs); err != nil {
+			return append(errorList, err)
+		}
 	}
 
 	return errorList
@@ -138,7 +141,6 @@ func analyseSessions(userSessions []interface{}, envErr string,
 	config config.Config) (results map[string]interface{}, err error) {
 
 	conversion := config.GetProperty("conversion").(string)
-	useCases := config.GetUseCases()
 	isLostBasket := config.HasUseCase("lost_basket")
 	errorAndAbandon, errorAndConvert, convert := splitUserSessions(envErr, conversion, isLostBasket, userSessions)
 
@@ -152,12 +154,12 @@ func analyseSessions(userSessions []interface{}, envErr string,
 	lostUsers := stats["lost_users"].(int)
 
 	sort.Slice(lostTimes, func(a, b int) bool {
-		return lostTimes[a] > lostTimes[b]
+		return lostTimes[a] < lostTimes[b]
 	})
 
 	var (
 		dateCheck     string
-		dayCount      int = 1
+		dayCount      int = 0
 		dateBreakdown []interface{}
 	)
 
@@ -165,7 +167,6 @@ func analyseSessions(userSessions []interface{}, envErr string,
 		dateString := time.Unix(0, lostTime*int64(time.Millisecond)).Format("02 Jan")
 
 		if i == 0 {
-			dateBreakdown = append(dateBreakdown, []string{"Date", "Amount of users"})
 			dateBreakdown = append(dateBreakdown, []interface{}{dateString, 1})
 			dateCheck = dateString
 		} else if dateString == dateCheck {
@@ -177,12 +178,11 @@ func analyseSessions(userSessions []interface{}, envErr string,
 		}
 	}
 	results = make(map[string]interface{})
-	results["use_cases"] = useCases
+	totalImpact := 0
 	results["impacted_users"] = totalWithError
 	results["lost_users"] = stats["lost_users"]
 	results["unconverted_users"] = len(errorAndAbandon)
-	results["user_breakdown"] = [4]interface{}{
-		[2]interface{}{"User type", "User volume"},
+	results["user_breakdown"] = [3]interface{}{
 		[2]interface{}{"Mobile", stats["lost_mobile"]},
 		[2]interface{}{"Desktop", stats["lost_desktop"]},
 		[2]interface{}{"Tablet", stats["lost_tablet"]},
@@ -203,11 +203,14 @@ func analyseSessions(userSessions []interface{}, envErr string,
 		results["lost_basket"] = int(lostBaskets)
 
 		lostMoney := int(lostBaskets / (100.0 / margin))
+		totalImpact += lostMoney
+
 		results["lost_money"] = lostMoney
 		results["lost_money_14d"] = lostMoney * 2
 		results["lost_money_21d"] = lostMoney * 3
 		results["lost_money_28d"] = lostMoney * 4
-	} else if config.HasUseCase("agent_hours") {
+	}
+	if config.HasUseCase("agent_hours") {
 		usersCalling := config.GetProperty("users_calling_in").(int)
 		callLength := config.GetProperty("length_of_call").(int)
 		callCost := config.GetProperty("cost_of_call").(float64)
@@ -215,8 +218,9 @@ func analyseSessions(userSessions []interface{}, envErr string,
 		lostAgentHoursMin := (lostUsers / 100) * usersCalling * callLength
 		lostAgentHoursHr := float64(lostAgentHoursMin / 60)
 
-		if callCost == 0 {
+		if callCost != 0 {
 			hoursLostCostMoney := float64((lostUsers/100)*usersCalling) * callCost
+			totalImpact += int(hoursLostCostMoney)
 			results["hours_lost_cost"] = hoursLostCostMoney
 			results["hours_lost_cost_14d"] = hoursLostCostMoney * 2
 			results["hours_lost_cost_21d"] = hoursLostCostMoney * 3
@@ -227,15 +231,19 @@ func analyseSessions(userSessions []interface{}, envErr string,
 		results["lost_agent_hours_14d"] = lostAgentHoursHr * 2
 		results["lost_agent_hours_21d"] = lostAgentHoursHr * 3
 		results["lost_agent_hours_28d"] = lostAgentHoursHr * 4
-	} else if config.HasUseCase("incurred_costs") {
+	}
+	if config.HasUseCase("incurred_costs") {
 		errorCost := config.GetProperty("cost_of_error").(float64)
 		costsIncurred := lostUsers * int(errorCost)
+		totalImpact += costsIncurred
 
 		results["costs_incurred"] = costsIncurred
 		results["costs_incurred_14d"] = costsIncurred * 2
 		results["costs_incurred_21d"] = costsIncurred * 3
 		results["costs_incurred_28d"] = costsIncurred * 4
 	}
+
+	results["total_impact"] = totalImpact
 
 	return results, nil
 }
@@ -263,7 +271,9 @@ func splitUserSessions(envErr string, conversion string, isLostBasket bool, user
 				errorAndAbandon = append(errorAndAbandon, session)
 			}
 		} else {
-			convert = append(convert, session)
+			if converted {
+				convert = append(convert, session)
+			}
 		}
 	}
 

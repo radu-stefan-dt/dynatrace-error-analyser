@@ -73,6 +73,11 @@ func (d *defaultTimelineProvider) GetDaysBeforeMillis(days int) int64 {
 	return utcNanos / 1_000_000
 }
 
+func GetTodayDigitString() string {
+	nowInLocalTimeZone := time.Now()
+	return nowInLocalTimeZone.Format("20060102")
+}
+
 func (d *defaultTimelineProvider) Sleep(duration time.Duration) {
 	time.Sleep(duration)
 }
