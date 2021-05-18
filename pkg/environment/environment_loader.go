@@ -27,6 +27,9 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// LoadEnvironmentList returns, if successful, all loaded environments mapped by their ID.
+// All environments are read from the same file and filtered down to a specific environment if specified.
+// Errors from parsing all environments are collated and returned as a list.
 func LoadEnvironmentList(specificEnvironment string, environmentsFile string, fs afero.Fs) (environments map[string]Environment, errorList []error) {
 
 	if environmentsFile == "" {
