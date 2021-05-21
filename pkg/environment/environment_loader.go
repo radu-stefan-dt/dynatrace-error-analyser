@@ -65,6 +65,10 @@ func readEnvironments(file string, fs afero.Fs) (map[string]Environment, []error
 	data, err := afero.ReadFile(fs, file)
 	util.FailOnError(err, "Error while reading environments file")
 
+	if errs := util.CheckUniqueYamlKey(data, "environment id"); len(errs) > 0 {
+		return nil, errs
+	}
+
 	environmentMaps := make(map[string]map[string]string)
 	err = yaml.Unmarshal(data, &environmentMaps)
 	util.FailOnError(err, "Error while converting YAML from environments file")

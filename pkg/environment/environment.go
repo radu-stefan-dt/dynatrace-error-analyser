@@ -59,7 +59,7 @@ func NewEnvironments(maps map[string]map[string]string) (map[string]Environment,
 			if _, environmentAlreadyExists := environments[environment.GetId()]; !environmentAlreadyExists {
 				environments[environment.GetId()] = environment
 			} else {
-				errors = append(errors, fmt.Errorf("environment `%s` is already defined, please use unique environment names", environment.GetId()))
+				errors = append(errors, fmt.Errorf("environment `%s` is already defined, please use unique environment IDs", environment.GetId()))
 			}
 		}
 	}
@@ -67,16 +67,27 @@ func NewEnvironments(maps map[string]map[string]string) (map[string]Environment,
 	return environments, errors
 }
 
+// newEnvironment does any validation and sanity checks before the environment is created
 func newEnvironment(id string, properties map[string]string) (Environment, error) {
-
 	environmentName, nameErr := util.CheckProperty(properties, "name")
 	environmentUrl, urlErr := util.CheckProperty(properties, "env-url")
 	envTokenName, tokenNameErr := util.CheckProperty(properties, "env-token-name")
 	envToken, tokenErr := util.CheckProperty(properties, "env-token")
 
-	// TODO: Improve error handling
 	if nameErr != nil || urlErr != nil || (tokenErr != nil && tokenNameErr != nil) {
-		return nil, fmt.Errorf("failed to parse config for environment %s. issues found:\n \t%s\n \t%s\n \t%s\n \t%s\n)", id, nameErr, urlErr, tokenNameErr, tokenErr)
+		errStr := fmt.Sprintf("failed to parse config for environment %s. issues found:\n", id)
+		if nameErr != nil {
+			errStr += fmt.Sprintf(" \t%s\n", nameErr)
+		}
+		if urlErr != nil {
+			errStr += fmt.Sprintf(" \t%s\n", urlErr)
+		}
+		if tokenNameErr != nil && tokenErr != nil {
+			errStr += fmt.Sprintf(" \t%s\n", tokenNameErr)
+			errStr += fmt.Sprintf(" \t%s\n", nameErr)
+		}
+
+		return nil, fmt.Errorf(errStr)
 	}
 
 	return NewEnvironment(id, environmentName, environmentUrl, envTokenName, envToken), nil
@@ -106,6 +117,7 @@ func (s *environmentImpl) GetEnvironmentUrl() string {
 	return s.environmentUrl
 }
 
+// GetName returns an environment's name
 func (s *environmentImpl) GetName() string {
 	return s.name
 }
@@ -117,7 +129,7 @@ func (s *environmentImpl) GetToken() (string, error) {
 	} else {
 		value := os.Getenv(s.envTokenName)
 		if value == "" {
-			return value, fmt.Errorf("no token value found, and environment variable " + s.envTokenName + " also not found")
+			return value, fmt.Errorf("no token value found for environment %s, and environment variable %s also not found", s.name, s.envTokenName)
 		}
 		return value, nil
 	}

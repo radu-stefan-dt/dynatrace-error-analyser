@@ -108,15 +108,15 @@ func getAnalyseCommand(fs afero.Fs) cli.Command {
 			&cli.PathFlag{
 				Name:      "environments",
 				Usage:     "YAML file containing details of Dynatrace environments",
+				Value:     "environments.yaml",
 				Aliases:   []string{"e"},
-				Required:  true,
 				TakesFile: true,
 			},
 			&cli.PathFlag{
 				Name:      "config",
 				Usage:     "YAML file containing configurations for error analysis",
+				Value:     "config.yaml",
 				Aliases:   []string{"c"},
-				Required:  true,
 				TakesFile: true,
 			},
 			&cli.StringFlag{

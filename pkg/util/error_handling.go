@@ -23,9 +23,12 @@ import (
 	"os"
 )
 
-func PrintErrors(errors []error) {
-	for _, err := range errors {
-		Log.Error("\t%s", err)
+func PrintErrorsFromMap(errors map[string][]error) {
+	for id, errs := range errors {
+		Log.Error("\t%s", id)
+		for _, err := range errs {
+			Log.Error("\t\t%s", err)
+		}
 	}
 }
 

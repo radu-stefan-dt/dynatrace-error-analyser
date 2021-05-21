@@ -109,3 +109,24 @@ func SortMapDesc(m map[string]int) PairList {
 
 	return p
 }
+
+// CheckUniqueYamlKey checks that the outermost keys in a YAML formatted payload.
+// The "name" refers to what the key represents and is used in the resulting error text.
+// This is useful for maintaining unique entries (ids) for items.
+func CheckUniqueYamlKey(data []byte, name string) (errs []error) {
+	lines := strings.Split(string(data), "\r\n")
+	keys := ""
+
+	for _, line := range lines {
+		if len(line) > 0 && !strings.HasPrefix(line, " ") && strings.HasSuffix(line, ":") {
+			key := line[:len(line)-1]
+			if strings.Contains(keys, key) {
+				errs = append(errs, fmt.Errorf("all %ss must be unique. duplicate found: %s", name, key))
+			} else {
+				keys += key + ";"
+			}
+		}
+	}
+
+	return errs
+}

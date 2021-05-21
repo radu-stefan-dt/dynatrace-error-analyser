@@ -16,6 +16,7 @@
  * along with this program.  If not, see: https://www.gnu.org/licenses/
  **/
 
+// Package config defines a error analysis configuration
 package config
 
 import (
@@ -48,6 +49,8 @@ type configImpl struct {
 	environments []string
 }
 
+// NewConfigurations creates config items from a map of details.
+// Map is expected to be map[string]map[string]interface{} as would be unmarshalled from YAML
 func NewConfigurations(maps map[string]map[string]interface{}) (map[string]Config, []error) {
 	configs := make(map[string]Config)
 	errors := make([]error, 0)
@@ -70,6 +73,7 @@ func NewConfigurations(maps map[string]map[string]interface{}) (map[string]Confi
 	return configs, errors
 }
 
+// newConfig does any validation and sanity checks required before creating a new config
 func newConfig(id string, properties map[string]interface{}) (Config, error) {
 	var configName string
 	var useCases []UseCase
@@ -124,6 +128,7 @@ func newConfig(id string, properties map[string]interface{}) (Config, error) {
 	return NewConfiguration(id, configName, useCases, configProps, configEnvs), nil
 }
 
+// getMandatoryProperties returns the mandatory properties required by each analysis use case
 func getMandatoryProperties(uc UseCase) []string {
 	props := []string{"error_prop", "conversion"}
 	switch uc {
@@ -138,6 +143,8 @@ func getMandatoryProperties(uc UseCase) []string {
 	return props
 }
 
+// NewConfiguration creates a new config from given details.
+// Should be used with clean data only. Any checks are done in newConfig.
 func NewConfiguration(id string, configName string, useCases []UseCase,
 	configProps map[string]interface{}, configEnvs []string) Config {
 	return &configImpl{
@@ -149,6 +156,8 @@ func NewConfiguration(id string, configName string, useCases []UseCase,
 	}
 }
 
+// checkMandatoryProperties checks a map of properties and their values against the
+// mandatory requrieremtns of the provided use cases.
 func checkMandatoryProperties(useCases []UseCase, props map[string]interface{}) error {
 	for _, useCase := range useCases {
 		mProps := getMandatoryProperties(useCase)
@@ -169,6 +178,7 @@ func checkMandatoryProperties(useCases []UseCase, props map[string]interface{}) 
 	return nil
 }
 
+// getValidUseCase converts a string into a UseCase
 func getValidUseCase(uc string) (UseCase, error) {
 	switch uc {
 	case "lost_basket":
@@ -190,6 +200,7 @@ func isValidUseCase(uc UseCase) error {
 	return errors.New("invalid config use case")
 }
 
+// HasUseCase checks if a configuration references the given use case
 func (c *configImpl) HasUseCase(uc string) bool {
 	for _, useCase := range c.useCases {
 		if string(useCase) == uc {
@@ -200,18 +211,22 @@ func (c *configImpl) HasUseCase(uc string) bool {
 	return false
 }
 
+// GetId returns a configuration's ID
 func (c *configImpl) GetId() string {
 	return c.id
 }
 
+// GetEnvironments returns the IDs of environments referenced by the config
 func (c *configImpl) GetEnvironments() []string {
 	return c.environments
 }
 
+// GetName returns a configuration's name
 func (c *configImpl) GetName() string {
 	return c.name
 }
 
+// GetProperty returns, if successful, the value of a configuration's given property
 func (c *configImpl) GetProperty(property string) interface{} {
 	prop, ok := c.properties[property]
 	if !ok {
@@ -249,6 +264,7 @@ func (c *configImpl) GetProperty(property string) interface{} {
 	}
 }
 
+// GetUseCases returns the use cases referenced by the config
 func (c *configImpl) GetUseCases() []UseCase {
 	for _, useCase := range c.useCases {
 		if err := isValidUseCase(useCase); err != nil {

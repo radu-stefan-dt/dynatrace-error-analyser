@@ -7,8 +7,7 @@
 
 # Logs and configuration files
 **.logs**
-**config.yaml**
-**envs.yaml**
+***.yaml**
 
 # Editor specific files
 **.vscode**

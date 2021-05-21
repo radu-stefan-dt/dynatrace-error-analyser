@@ -16,6 +16,7 @@
  * along with this program.  If not, see: https://www.gnu.org/licenses/
  **/
 
+// Package analyse defines the implementation for error analysis in the derran command
 package analyse
 
 import (
@@ -32,6 +33,10 @@ import (
 	"github.com/spf13/afero"
 )
 
+// Analyse validates the provided configuration files and, if successful, continues with the error analysis.
+// Analysis is done configuration by configuration running through all referenced environments, unless a
+// specific environment is specified. Reporting is done once all the data is collected and the reporting
+// output will group together reports in environment folders, with each report representing a configuration.
 func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string, configFile string, specificEnvironment string) error {
 	environments, envErrors := environment.LoadEnvironmentList(specificEnvironment, environmentsFile, fs)
 	configs, configErrors := config.LoadConfigList(configFile, fs)
@@ -41,50 +46,41 @@ func Analyse(dryRun bool, outputDir string, fs afero.Fs, environmentsFile string
 	var deploymentErrors = make(map[string][]error)
 
 	for i, err := range envErrors {
-		configIssue := fmt.Sprintf("environmentfile-issue-%d", i)
-		deploymentErrors[configIssue] = append(deploymentErrors[configIssue], err)
+		issue := fmt.Sprintf("environmentfile-issue-%d", i)
+		deploymentErrors[issue] = append(deploymentErrors[issue], err)
 	}
 	for i, err := range configErrors {
-		configIssue := fmt.Sprintf("configurationfile-issue-%d", i)
-		deploymentErrors[configIssue] = append(deploymentErrors[configIssue], err)
+		issue := fmt.Sprintf("configurationfile-issue-%d", i)
+		deploymentErrors[issue] = append(deploymentErrors[issue], err)
 	}
 
-	if !dryRun {
+	if !dryRun && len(deploymentErrors) == 0 {
 		for _, configuration := range configs {
 			errors := execute(configuration, environments, outputDir, fs)
 
-			if len(errors) > 0 {
-				deploymentErrors[configuration.GetId()] = errors
+			for i, err := range errors {
+				issue := fmt.Sprintf("%s-execution-issue-%d", configuration.GetId(), i)
+				deploymentErrors[issue] = append(deploymentErrors[issue], err)
 			}
 		}
 	}
 
 	util.Log.Info("Deployment summary:")
-	for _, errors := range deploymentErrors {
+	if len(deploymentErrors) > 0 {
 		if dryRun {
-			util.Log.Error("Validation of environment failed. Found %d error(s)\n", len(errors))
-			util.PrintErrors(errors)
+			util.Log.Error("Validation run failed. Errors:\n")
 		} else {
-			util.Log.Error("Analysis of environment failed with error!\n")
-			util.PrintErrors(errors)
+			util.Log.Error("Analysis run failed. Errors:\n")
 		}
+		util.PrintErrorsFromMap(deploymentErrors)
+		return fmt.Errorf("This run completed with errors. Check log for details.")
 	}
-
 	if dryRun {
-		if len(deploymentErrors) > 0 {
-			return fmt.Errorf("errors during validation! check log")
-		} else {
-			util.Log.Info("Validation finished without errors")
-			return nil
-		}
+		util.Log.Info("Validation finsihed without errors.")
 	} else {
-		if len(deploymentErrors) > 0 {
-			return fmt.Errorf("errors during execution! check log")
-		} else {
-			util.Log.Info("Execution finished without errors")
-			return nil
-		}
+		util.Log.Info("Execution finished without errors.")
 	}
+	return nil
 }
 
 func execute(config config.Config, environments map[string]environment.Environment, outputDir string, fs afero.Fs) (errorList []error) {

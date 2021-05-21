@@ -27,6 +27,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+// LoadConfigList parses the configurations YAML file and returns the parsed configs, mapped by their ID
 func LoadConfigList(configFile string, fs afero.Fs) (configs map[string]Config, errorList []error) {
 	if configFile == "" {
 		errorList = append(errorList, errors.New("no configurations file provided"))
@@ -48,6 +49,10 @@ func LoadConfigList(configFile string, fs afero.Fs) (configs map[string]Config, 
 func readConfigs(file string, fs afero.Fs) (map[string]Config, []error) {
 	data, err := afero.ReadFile(fs, file)
 	util.FailOnError(err, "Error while reading config file")
+
+	if errs := util.CheckUniqueYamlKey(data, "configuration id"); len(errs) > 0 {
+		return nil, errs
+	}
 
 	configMaps := make(map[string]map[string]interface{})
 	err = yaml.Unmarshal(data, &configMaps)
