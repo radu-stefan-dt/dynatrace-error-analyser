@@ -285,16 +285,16 @@ func populateUseCaseCurrentData(sheet string, report *excelize.File, config conf
 		var mainValue interface{}
 		var secondValue interface{}
 		if useCase == "lost_basket" {
-			mainValue = details["lost_basket"].(int)
-			secondValue = details["lost_money"].(int)
+			mainValue = fmt.Sprintf("£%d", details["lost_basket"].(int))
+			secondValue = fmt.Sprintf("£%d", details["lost_money"].(int))
 		} else if useCase == "agent_hours" {
 			report.SetCellStyle(sheet, "C"+fmt.Sprintf("%d", idx), "C"+fmt.Sprintf("%d", idx), styleCurrentValue)
 			mainValue = details["lost_agent_hours"].(float64)
 			if val, ok := details["hours_lost_cost"]; ok {
-				secondValue = val.(float64)
+				secondValue = fmt.Sprintf("£%.0f", val.(float64))
 			}
 		} else if useCase == "incurred_costs" {
-			mainValue = details["costs_incurred"].(int)
+			mainValue = fmt.Sprintf("£%d", details["costs_incurred"].(int))
 		}
 		report.SetCellValue(sheet, "C"+fmt.Sprintf("%d", idx), mainValue)
 		if allUseCases[string(useCase)].secondValueMeaning != "" && secondValue != "" {
@@ -313,7 +313,6 @@ func populateUseCaseFutureData(sheet string, report *excelize.File, config confi
 	styleSubtitle := getExcelStyle("subtitle", report)
 	styleSubtitle2 := getExcelStyle("subtitle2", report)
 	styleCurrentValue := getExcelStyle("currentValue", report)
-	//styleFutureValue := getExcelStyle("futureValue", report)
 	styleFutureValueMoney := getExcelStyle("futureValueMoney", report)
 	styleDefault := getExcelStyle("default", report)
 
@@ -356,9 +355,9 @@ func populateUseCaseFutureData(sheet string, report *excelize.File, config confi
 
 		if useCase == "lost_basket" {
 			report.SetCellValue(sheet, "B"+fmt.Sprintf("%d", idx), "Due to lost baskets...")
-			report.SetCellValue(sheet, "B"+fmt.Sprintf("%d", idx+1), details["lost_money_14d"].(int))
-			report.SetCellValue(sheet, "F"+fmt.Sprintf("%d", idx+1), details["lost_money_21d"].(int))
-			report.SetCellValue(sheet, "J"+fmt.Sprintf("%d", idx+1), details["lost_money_28d"].(int))
+			report.SetCellValue(sheet, "B"+fmt.Sprintf("%d", idx+1), fmt.Sprintf("£%d", details["lost_money_14d"].(int)))
+			report.SetCellValue(sheet, "F"+fmt.Sprintf("%d", idx+1), fmt.Sprintf("£%d", details["lost_money_21d"].(int)))
+			report.SetCellValue(sheet, "J"+fmt.Sprintf("%d", idx+1), fmt.Sprintf("£%d", details["lost_money_28d"].(int)))
 			idx += 3
 		} else if useCase == "agent_hours" {
 			// Additional cells for this use case
@@ -373,15 +372,15 @@ func populateUseCaseFutureData(sheet string, report *excelize.File, config confi
 			report.SetCellValue(sheet, "B"+fmt.Sprintf("%d", idx+1), fmt.Sprintf("%.0f", details["lost_agent_hours_14d"].(float64))+" Hours")
 			report.SetCellValue(sheet, "F"+fmt.Sprintf("%d", idx+1), fmt.Sprintf("%.0f", details["lost_agent_hours_21d"].(float64))+" Hours")
 			report.SetCellValue(sheet, "J"+fmt.Sprintf("%d", idx+1), fmt.Sprintf("%.0f", details["lost_agent_hours_28d"].(float64))+" Hours")
-			report.SetCellValue(sheet, "B"+fmt.Sprintf("%d", idx+2), details["hours_lost_cost_14d"].(float64))
-			report.SetCellValue(sheet, "F"+fmt.Sprintf("%d", idx+2), details["hours_lost_cost_21d"].(float64))
-			report.SetCellValue(sheet, "J"+fmt.Sprintf("%d", idx+2), details["hours_lost_cost_28d"].(float64))
+			report.SetCellValue(sheet, "B"+fmt.Sprintf("%d", idx+2), fmt.Sprintf("£%.0f", details["hours_lost_cost_14d"].(float64)))
+			report.SetCellValue(sheet, "F"+fmt.Sprintf("%d", idx+2), fmt.Sprintf("£%.0f", details["hours_lost_cost_21d"].(float64)))
+			report.SetCellValue(sheet, "J"+fmt.Sprintf("%d", idx+2), fmt.Sprintf("£%.0f", details["hours_lost_cost_28d"].(float64)))
 			idx += 4
 		} else if useCase == "incurred_costs" {
 			report.SetCellValue(sheet, "B"+fmt.Sprintf("%d", idx), "Due to incurred costs...")
-			report.SetCellValue(sheet, "B"+fmt.Sprintf("%d", idx+1), details["costs_incurred_14d"].(int))
-			report.SetCellValue(sheet, "F"+fmt.Sprintf("%d", idx+1), details["costs_incurred_21d"].(int))
-			report.SetCellValue(sheet, "J"+fmt.Sprintf("%d", idx+1), details["costs_incurred_28d"].(int))
+			report.SetCellValue(sheet, "B"+fmt.Sprintf("%d", idx+1), fmt.Sprintf("£%d", details["costs_incurred_14d"].(int)))
+			report.SetCellValue(sheet, "F"+fmt.Sprintf("%d", idx+1), fmt.Sprintf("£%d", details["costs_incurred_21d"].(int)))
+			report.SetCellValue(sheet, "J"+fmt.Sprintf("%d", idx+1), fmt.Sprintf("£%d", details["costs_incurred_28d"].(int)))
 			idx += 3
 		}
 	}
@@ -555,7 +554,7 @@ func populateSummarySheet(sheet string, report *excelize.File, reportData map[st
 
 		report.SetCellValue(sheet, "B"+idx, k.Key)
 		report.SetCellHyperLink(sheet, "B"+idx, "'"+k.Key+"'!A1", "Location")
-		report.SetCellValue(sheet, "E"+idx, k.Value)
+		report.SetCellValue(sheet, "E"+idx, fmt.Sprintf("£%d", k.Value))
 
 		i++
 	}
