@@ -32,6 +32,8 @@ type Environment interface {
 	GetEnvironmentUrl() string
 	GetToken() (string, error)
 	GetName() string
+	GetMCCookie() (string, error)
+	GetMCUserAgent() (string, error)
 }
 
 type environmentImpl struct {
@@ -40,6 +42,8 @@ type environmentImpl struct {
 	environmentUrl string
 	envTokenName   string
 	envToken       string
+	mcCookie       string
+	mcUserAgent    string
 }
 
 // NewEnvironments creates one or more environments from a map of details.
@@ -73,6 +77,8 @@ func newEnvironment(id string, properties map[string]string) (Environment, error
 	environmentUrl, urlErr := util.CheckProperty(properties, "env-url")
 	envTokenName, tokenNameErr := util.CheckProperty(properties, "env-token-name")
 	envToken, tokenErr := util.CheckProperty(properties, "env-token")
+	mcCookie, _ := util.CheckProperty(properties, "mc-cookie")
+	mcUA, _ := util.CheckProperty(properties, "mc-ua")
 
 	if nameErr != nil || urlErr != nil || (tokenErr != nil && tokenNameErr != nil) {
 		errStr := fmt.Sprintf("failed to parse config for environment %s. issues found:\n", id)
@@ -90,12 +96,12 @@ func newEnvironment(id string, properties map[string]string) (Environment, error
 		return nil, fmt.Errorf(errStr)
 	}
 
-	return NewEnvironment(id, environmentName, environmentUrl, envTokenName, envToken), nil
+	return NewEnvironment(id, environmentName, environmentUrl, envTokenName, envToken, mcUA, mcCookie), nil
 }
 
 // NewEnvironment creates a new Environment based on mandatory details.
 // It should only be used with clean data. Any pre validation and checking should be done in newEnvironment.
-func NewEnvironment(id string, name string, environmentUrl string, envTokenName string, envToken string) Environment {
+func NewEnvironment(id string, name string, environmentUrl string, envTokenName string, envToken string, mcUA string, mcCookie string) Environment {
 	environmentUrl = strings.TrimSuffix(environmentUrl, "/")
 
 	return &environmentImpl{
@@ -104,6 +110,8 @@ func NewEnvironment(id string, name string, environmentUrl string, envTokenName 
 		environmentUrl: environmentUrl,
 		envTokenName:   envTokenName,
 		envToken:       envToken,
+		mcUserAgent:    mcUA,
+		mcCookie:       mcCookie,
 	}
 }
 
@@ -120,6 +128,30 @@ func (s *environmentImpl) GetEnvironmentUrl() string {
 // GetName returns an environment's name
 func (s *environmentImpl) GetName() string {
 	return s.name
+}
+
+// GetMCUserAgent returns an environment's UserAgent string to use with Mission Control
+func (s *environmentImpl) GetMCUserAgent() (string, error) {
+	if s.mcUserAgent != "" {
+		if value := os.Getenv(s.mcUserAgent); value == "" {
+			return value, fmt.Errorf("no mc-ua token value found for environment %s", s.name)
+		} else {
+			return value, nil
+		}
+	}
+	return s.mcUserAgent, nil
+}
+
+// GetMCCookie returns an environment's Dynatrace Cookie to use with Mission Control
+func (s *environmentImpl) GetMCCookie() (string, error) {
+	if s.mcCookie != "" {
+		if value := os.Getenv(s.mcCookie); value == "" {
+			return value, fmt.Errorf("no mc-cookie token value found for environment %s", s.name)
+		} else {
+			return value, nil
+		}
+	}
+	return s.mcCookie, nil
 }
 
 // GetToken returns the value of the API Token associated with the Dynatrace environment.

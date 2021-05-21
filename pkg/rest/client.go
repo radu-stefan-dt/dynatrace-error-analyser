@@ -42,6 +42,8 @@ type DynatraceClient interface {
 type dynatraceClientImpl struct {
 	environmentUrl string
 	token          string
+	mcUserAgent    string
+	mcCookie       string
 	client         *http.Client
 }
 
@@ -50,7 +52,7 @@ const (
 )
 
 // NewDynatraceClient creates a new DynatraceClient
-func NewDynatraceClient(environmentUrl, token string) (DynatraceClient, error) {
+func NewDynatraceClient(environmentUrl, token, mcUA, mcCookie string) (DynatraceClient, error) {
 
 	if environmentUrl == "" {
 		return nil, errors.New("no environment url")
@@ -77,6 +79,8 @@ func NewDynatraceClient(environmentUrl, token string) (DynatraceClient, error) {
 	return &dynatraceClientImpl{
 		environmentUrl: environmentUrl,
 		token:          token,
+		mcUserAgent:    mcUA,
+		mcCookie:       mcCookie,
 		client:         &http.Client{},
 	}, nil
 }
@@ -107,7 +111,7 @@ func (d *dynatraceClientImpl) FetchErrors(config config.Config) (environmentErro
 	fullUrl := d.environmentUrl + userSessionsTableAPI + "?" + params.Encode()
 	fmt.Println(fullUrl)
 
-	response, err := get(d.client, fullUrl, d.token)
+	response, err := get(d.client, fullUrl, d.token, d.mcUserAgent, d.mcCookie)
 
 	if err != nil {
 		return nil, err
@@ -162,7 +166,7 @@ func (d *dynatraceClientImpl) FetchSessionsByError(config config.Config,
 	params.Add("explain", "false")
 	fullUrl := d.environmentUrl + userSessionsTableAPI + "?" + params.Encode()
 
-	response, err := get(d.client, fullUrl, d.token)
+	response, err := get(d.client, fullUrl, d.token, d.mcUserAgent, d.mcCookie)
 
 	if err != nil {
 		return nil, err
@@ -218,8 +222,7 @@ func (d *dynatraceClientImpl) FetchSessionsByError(config config.Config,
 			params.Add("explain", "false")
 			fullUrl = d.environmentUrl + userSessionsTableAPI + "?" + params.Encode()
 
-			response, err := get(d.client, fullUrl, d.token)
-
+			response, err := get(d.client, fullUrl, d.token, d.mcUserAgent, d.mcCookie)
 			if err != nil {
 				return nil, err
 			}
@@ -252,7 +255,7 @@ func (d *dynatraceClientImpl) FetchSessionsByError(config config.Config,
 		params.Add("explain", "false")
 		fullUrl = d.environmentUrl + userSessionsTableAPI + "?" + params.Encode()
 
-		response, err := get(d.client, fullUrl, d.token)
+		response, err := get(d.client, fullUrl, d.token, d.mcUserAgent, d.mcCookie)
 
 		if err != nil {
 			return nil, err

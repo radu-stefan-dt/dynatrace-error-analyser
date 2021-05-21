@@ -97,7 +97,17 @@ func execute(config config.Config, environments map[string]environment.Environme
 			return append(errorList, err)
 		}
 
-		client, err = rest.NewDynatraceClient(environment.GetEnvironmentUrl(), apiToken)
+		mcUA, err := environment.GetMCUserAgent()
+		if err != nil {
+			return append(errorList, err)
+		}
+
+		mcCookie, err := environment.GetMCCookie()
+		if err != nil {
+			return append(errorList, err)
+		}
+
+		client, err = rest.NewDynatraceClient(environment.GetEnvironmentUrl(), apiToken, mcUA, mcCookie)
 		if err != nil {
 			return append(errorList, err)
 		}

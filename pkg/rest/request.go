@@ -1,20 +1,18 @@
 /**
  * @license
- * Copyright (C) 2021  Radu Stefan
+ * Copyright 2020 Dynatrace LLC
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see: https://www.gnu.org/licenses/
- **/
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package rest
 
@@ -23,6 +21,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"runtime"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/radu-stefan-dt/dynatrace-error-analyser/pkg/util"
@@ -35,8 +34,8 @@ type Response struct {
 	Headers    map[string][]string
 }
 
-func get(client *http.Client, url string, apiToken string) (Response, error) {
-	req, err := request(http.MethodGet, url, apiToken)
+func get(client *http.Client, url, apiToken, mcUA, mcCookie string) (Response, error) {
+	req, err := request(http.MethodGet, url, apiToken, mcUA, mcCookie)
 
 	if err != nil {
 		return Response{}, err
@@ -45,20 +44,33 @@ func get(client *http.Client, url string, apiToken string) (Response, error) {
 	return executeRequest(client, req), nil
 }
 
-func request(method string, url string, apiToken string) (*http.Request, error) {
-	return requestWithBody(method, url, nil, apiToken)
+func request(method, url, apiToken, mcUA, mcCookie string) (*http.Request, error) {
+	return requestWithBody(method, url, nil, apiToken, mcUA, mcCookie)
 }
 
-func requestWithBody(method string, url string, body io.Reader, apiToken string) (*http.Request, error) {
+func requestWithBody(method, url string, body io.Reader, apiToken, mcUA, mcCookie string) (*http.Request, error) {
+	if mcUA != "" && mcCookie != "" {
+		if strings.Contains(url, "?") {
+			url += "&"
+		} else {
+			url += "?"
+		}
+		url += "Api-Token=" + apiToken
+	}
 	req, err := http.NewRequest(method, url, body)
-
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Authorization", "Api-Token "+apiToken)
+	if mcUA != "" && mcCookie != "" {
+		req.Header.Set("User-Agent", mcUA)
+		req.Header.Set("Cookie", mcCookie)
+	} else {
+		req.Header.Set("Authorization", "Api-Token "+apiToken)
+		req.Header.Set("User-Agent", "Dynatrace Error Analyser/"+version.ErrorAnalyser+" "+(runtime.GOOS+" "+runtime.GOARCH))
+	}
 	req.Header.Set("Content-type", "application/json")
-	req.Header.Set("User-Agent", "Dynatrace Error Analyser/"+version.ErrorAnalyser+" "+(runtime.GOOS+" "+runtime.GOARCH))
+
 	return req, nil
 }
 
